@@ -2,15 +2,53 @@ const std = @import("std");
 
 fn Rtc(comptime baseAddress: [*]volatile u32) type {
     return struct {
-        timeRegister: *volatile packed struct(u32) { secondUnits: u4, secondTens: u3, _: u1 = 0, minuteUnits: u4, minuteTens: u3, __: u1 = 0, hourUnits: u4, hourTens: u2, amPmFormat: bool, ___: u9 = 0 } = @ptrCast(&baseAddress[0]),
-        dateRegister: *volatile packed struct(u32) { dayUnits: u4, dayTens: u2, _: u2 = 0, monthUnits: u4, monthTens: u1, weekdayUnits: u3, yearUnits: u4, yearTens: u4, __: u8 = 0 } = @ptrCast(&baseAddress[1]),
-        controlRegister: *volatile u32 = @ptrCast(&baseAddress[2]),
-        intializationAndStatusRegister: *volatile packed struct(u32) { alarmAWriteFlag: bool, _: u1 = 0, wakeupTimerWriteFlag: bool, shiftOperationPending: bool, initializationStatus: bool, registersSynchronized: bool, initializationMode: bool, alarmAFlag: bool, __: u1 = 0, wakeupTimerFlag: bool, timestampFlag: bool, timestampOverflowFlag: bool, tamperDetection1Flag: bool, tamperDetection2Flag: bool, recalibrationPendingFlag: bool, ___: u17 = 0 } = @ptrCast(&baseAddress[3]),
-        prescalerRegister: *volatile packed struct(u32) { asyncPrescaler: u15, _: u1 = 0, syncPrescaler: u7, __: u9 = 0 } = @ptrCast(&baseAddress[4]),
+        /// Time register
+        tr: *volatile packed struct(u32) { secondUnits: u4, secondTens: u3, _: u1 = 0, minuteUnits: u4, minuteTens: u3, __: u1 = 0, hourUnits: u4, hourTens: u2, amPmFormat: bool, ___: u9 = 0 } = @ptrCast(&baseAddress[0]),
+        /// Date register
+        dr: *volatile packed struct(u32) { dayUnits: u4, dayTens: u2, _: u2 = 0, monthUnits: u4, monthTens: u1, weekdayUnits: u3, yearUnits: u4, yearTens: u4, __: u8 = 0 } = @ptrCast(&baseAddress[1]),
+        /// Control register
+        cr: *volatile u32 = @ptrCast(&baseAddress[2]),
+        /// Initialization and status register
+        isr: *volatile packed struct(u32) {
+            /// Alarm A write Flag
+            alrawf: bool,
+            _: u1 = 0,
+            /// Wake-up timer write flag
+            wutwf: bool,
+            /// Shift operation pending
+            shpf: bool,
+            /// Initialization status flag
+            inits: bool,
+            /// Registers synchronization flag
+            rsf: bool,
+            /// Initialization flag
+            initf: bool,
+            /// Initialization mode
+            init: bool,
+            /// Alarm A flag
+            alraf: bool,
+            __: u1 = 0,
+            /// Wake-up timer flag
+            wutf: bool,
+            /// Time-stamp flag
+            tsf: bool,
+            /// Time-stamp overflow flag
+            tsovf: bool,
+            /// RTC_TAMP1 detection flag
+            tamp1f: bool,
+            /// RTC_TAMP2 detection flag
+            tamp2f: bool,
+            ___: u1 = 0,
+            /// Recalibration pending flag
+            recalpf: bool,
+            ____: u15 = 0,
+        } = @ptrCast(&baseAddress[3]),
+        /// Prescaler register
+        prer: *volatile packed struct(u32) { asyncPrescaler: u15, _: u1 = 0, syncPrescaler: u7, __: u9 = 0 } = @ptrCast(&baseAddress[4]),
         wakeupTimerRegister: *volatile u32 = @ptrCast(&baseAddress[5]),
         //
         alarmARegister: *volatile u32 = @ptrCast(&baseAddress[7]),
-        writeProtectionRegister: *volatile u8 = @ptrCast(&baseAddress[9]),
+        wpr: *volatile u8 = @ptrCast(&baseAddress[9]),
         subSecondsRegister: *volatile u16 = @ptrCast(&baseAddress[10]),
         shiftControlRegister: *volatile u32 = @ptrCast(&baseAddress[11]),
         timestampTimeRegister: *volatile u32 = @ptrCast(&baseAddress[12]),
@@ -26,60 +64,63 @@ fn Rtc(comptime baseAddress: [*]volatile u32) type {
             const scope = std.log.scoped(.rtc);
 
             scope.debug("disabling write protection", .{});
-            self.writeProtectionRegister.* = 0xCA;
-            self.writeProtectionRegister.* = 0x53;
+            self.wpr.* = 0xCA;
+            self.wpr.* = 0x53;
 
             scope.debug("setting initialization mode", .{});
-            self.intializationAndStatusRegister.*.initializationMode = true;
+            self.isr.init = true;
+            scope.debug("initialization mode: {}", .{self.isr.init});
 
             scope.debug("waiting for initialization status", .{});
-            while (self.intializationAndStatusRegister.*.initializationStatus == false) {}
+            while (self.isr.initf == false) {}
             scope.debug("initialization status reached", .{});
 
-            self.prescalerRegister.*.asyncPrescaler = 0x01;
-            self.prescalerRegister.*.syncPrescaler = 0x01;
+            self.prer.syncPrescaler = 0x7F;
+            self.prer.asyncPrescaler = 0xFE;
 
-            self.timeRegister.hourTens = 1;
-            self.timeRegister.hourUnits = 2;
-            self.timeRegister.minuteTens = 3;
-            self.timeRegister.minuteUnits = 4;
-            self.timeRegister.secondTens = 5;
-            self.timeRegister.secondUnits = 6;
+            self.tr.hourTens = 0;
+            self.tr.hourUnits = 0;
+            self.tr.minuteTens = 0;
+            self.tr.minuteUnits = 0;
+            self.tr.secondTens = 0;
+            self.tr.secondUnits = 0;
 
-            self.dateRegister.dayTens = 2;
-            self.dateRegister.dayUnits = 8;
-            self.dateRegister.monthTens = 1;
-            self.dateRegister.monthUnits = 10;
-            self.dateRegister.weekdayUnits = 2;
-            self.dateRegister.yearTens = 12;
-            self.dateRegister.yearUnits = 13;
+            self.dr.dayTens = 0;
+            self.dr.dayUnits = 1;
+            self.dr.monthTens = 0;
+            self.dr.monthUnits = 1;
+            self.dr.weekdayUnits = 1;
+            self.dr.yearTens = 0;
+            self.dr.yearUnits = 0;
 
-            self.intializationAndStatusRegister.*.initializationMode = false;
+            self.isr.init = false;
 
             scope.debug("re-enabling write protection", .{});
-            self.writeProtectionRegister.* = 0xFE;
-            self.writeProtectionRegister.* = 0x64;
+            self.wpr.* = 0xFE;
+            self.wpr.* = 0x64;
         }
 
         pub fn getTime(self: @This()) struct {
             hours: u8,
             minutes: u8,
             seconds: u8,
+            subSeconds: u16,
             pub fn format(
                 _self: @This(),
                 comptime _: []const u8,
                 _: anytype,
                 writer: anytype,
             ) !void {
-                try writer.print("{d:0<2}:{d:0<2}:{d:0<2}", .{ _self.hours, _self.minutes, _self.seconds });
+                try writer.print("{d:0<2}:{d:0<2}:{d:0<2}.{d}", .{ _self.hours, _self.minutes, _self.seconds, _self.subSeconds });
             }
         } {
-            while (self.intializationAndStatusRegister.*.registersSynchronized == false) {}
+            while (self.isr.*.rsf == false) {}
 
             return .{
-                .hours = @as(u8, self.timeRegister.*.hourTens) * 10 + @as(u8, self.timeRegister.*.hourUnits),
-                .minutes = @as(u8, self.timeRegister.*.minuteTens) * 10 + @as(u8, self.timeRegister.*.minuteUnits),
-                .seconds = @as(u8, self.timeRegister.*.secondTens) * 10 + @as(u8, self.timeRegister.*.secondUnits),
+                .hours = @as(u8, self.tr.*.hourTens) * 10 + @as(u8, self.tr.*.hourUnits),
+                .minutes = @as(u8, self.tr.*.minuteTens) * 10 + @as(u8, self.tr.*.minuteUnits),
+                .seconds = @as(u8, self.tr.*.secondTens) * 10 + @as(u8, self.tr.*.secondUnits),
+                .subSeconds = self.subSecondsRegister.*,
             };
         }
 
@@ -97,9 +138,9 @@ fn Rtc(comptime baseAddress: [*]volatile u32) type {
             }
         } {
             return .{
-                .year = @as(u16, self.dateRegister.*.yearTens) * 10 + @as(u16, self.dateRegister.*.yearUnits),
-                .month = @as(u8, self.dateRegister.*.monthTens) * 10 + @as(u8, self.dateRegister.*.monthUnits),
-                .day = @as(u8, self.dateRegister.*.dayTens) * 10 + @as(u8, self.dateRegister.*.dayUnits),
+                .year = @as(u16, self.dr.*.yearTens) * 10 + @as(u16, self.dr.*.yearUnits),
+                .month = @as(u8, self.dr.*.monthTens) * 10 + @as(u8, self.dr.*.monthUnits),
+                .day = @as(u8, self.dr.*.dayTens) * 10 + @as(u8, self.dr.*.dayUnits),
             };
         }
     };

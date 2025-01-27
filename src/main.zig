@@ -4,68 +4,9 @@ const gpio = @import("gpio.zig");
 const uart = @import("uart.zig");
 const rtc = @import("rtc.zig");
 const power = @import("power.zig");
+const rcc = @import("rcc.zig");
 
 usingnamespace @import("lib.zig");
-
-const RCC = struct {
-    base: [*]volatile u32,
-
-    const Peripheral1 = enum(u32) {
-        GPIOF = 1 << 22,
-        GPIOD = 1 << 20,
-        GPIOC = 1 << 19,
-        GPIOB = 1 << 18,
-        GPIOA = 1 << 17,
-        CRC = 1 << 6,
-        FLITF = 1 << 4,
-        SRAM = 1 << 2,
-        DMA = 1 << 0,
-    };
-
-    const Peripheral2 = enum(u32) {
-        SYSCFG = 1 << 0,
-        USART6 = 1 << 5,
-        ADC = 1 << 9,
-        TIMER1 = 1 << 11,
-        SPI1 = 1 << 12,
-        USART1 = 1 << 14,
-        TIMER15 = 1 << 16,
-        TIMER16 = 1 << 17,
-        TIMER17 = 1 << 18,
-        DBG = 1 << 22,
-    };
-
-    pub fn setPeripheralClock(self: @This(), peripheral: Peripheral1, enabled: bool) void {
-        if (enabled) {
-            self.base[0x14 / 4] |= @intFromEnum(peripheral);
-        } else {
-            self.base[0x14 / 4] &= ~@intFromEnum(peripheral);
-        }
-    }
-
-    pub fn setPeripheralClock2(self: @This(), peripheral: Peripheral2, enabled: bool) void {
-        if (enabled) {
-            self.base[0x18 / 4] |= @intFromEnum(peripheral);
-        } else {
-            self.base[0x18 / 4] &= ~@intFromEnum(peripheral);
-        }
-    }
-
-    pub fn setRtcClock(self: @This(), enabled: bool) void {
-        if (enabled) {
-            self.base[0x20 / 4] |= @as(u32, 1) << 15;
-        } else {
-            self.base[0x20 / 4] &= ~(@as(u32, 1) << 15);
-        }
-    }
-
-    pub fn reset_peripheral2(self: @This(), peripheral: Peripheral2) void {
-        self.base[0x0C / 4] |= @intFromEnum(peripheral);
-        self.base[0x0C / 4] &= ~@intFromEnum(peripheral);
-    }
-}{
-    .base = @ptrFromInt(0x40021000),
-};
 
 pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
     var buffer: [255]u8 = undefined;
@@ -93,7 +34,8 @@ pub const std_options: std.Options = .{
 };
 
 export fn mymain() noreturn {
-    RCC.setPeripheralClock(.GPIOA, true);
+    // RCC.setPeripheralClock(.GPIOA, true);
+    rcc.RCC.ahbenr.gpioaen = true;
 
     const LED_PIN: u32 = 4;
 
@@ -109,7 +51,8 @@ export fn mymain() noreturn {
     gpio.GPIOA.setAlternateFunction(3, .AF1);
 
     //RCC.reset_peripheral2(.USART1);
-    RCC.setPeripheralClock2(.USART1, true);
+    //RCC.setPeripheralClock2(.USART1, true);
+    rcc.RCC.apb2enr.usart1en = true;
     uart.Usart1.init(115200);
 
     gpio.GPIOA.setMode(LED_PIN, .Output);
@@ -117,10 +60,27 @@ export fn mymain() noreturn {
     gpio.GPIOA.setOutputSpeed(LED_PIN, .Low);
     gpio.GPIOA.setPullMode(LED_PIN, .PullDown);
 
-    power.PWR.controlRegister.*.disableRtcDomainWriteProtection = true;
-    RCC.setRtcClock(true);
+    //rcc.RCC.bdcr.rtcen = true;
+    rcc.RCC.apb1enr.pwren = true;
+
+    power.PWR.controlRegister.dbp = true;
+    std.log.info("disable rtc domain write protection: {}", .{power.PWR.controlRegister.dbp});
+
+    rcc.RCC.csr.lsion = true;
+    std.log.info("LSI enabled: {}", .{rcc.RCC.csr.lsion});
+    // wait for LSI to stabilize
+    std.log.info("waiting for LSI to stabilize", .{});
+    while (!rcc.RCC.csr.lsirdy) {}
+    std.log.info("LSI stabilized", .{});
+
+    // select LSI as RTC clock source
+    rcc.RCC.bdcr.rtcsel = 0b10;
+    std.log.info("RTC clock source: {}", .{rcc.RCC.bdcr.rtcsel});
+
+    rcc.RCC.bdcr.rtcen = true;
+
     rtc.RTC.init();
-    power.PWR.controlRegister.*.disableRtcDomainWriteProtection = false;
+    power.PWR.controlRegister.dbp = false;
 
     while (true) {
         gpio.GPIOA.setLevel(LED_PIN, 1);

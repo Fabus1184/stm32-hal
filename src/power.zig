@@ -1,12 +1,18 @@
+/// Power Control
 fn PowerControl(comptime baseAddress: [*]volatile u32) type {
     return struct {
         controlRegister: *volatile packed struct(u32) {
-            lowPowerDeepSleep: bool,
-            powerDownDeepSleep: bool,
-            clearWakeUpFlag: bool,
-            clearStandbyFlag: bool,
+            /// Low-power deepsleep
+            lpds: bool,
+            /// Power down deepsleep
+            pdds: bool,
+            /// Clear wake-up flag
+            cwuf: bool,
+            /// Clear standby flag
+            csbf: bool,
             _: u4 = 0,
-            disableRtcDomainWriteProtection: bool,
+            /// Disable RTC domain write protection
+            dbp: bool,
             __: u23 = 0,
         } = @ptrCast(&baseAddress[0]),
         statusRegister: *volatile packed struct(u32) {

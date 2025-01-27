@@ -1,5 +1,6 @@
 const std = @import("std");
 
+/// Universal Synchronous Asynchronous Receiver Transmitter
 fn Usart(comptime baseAddress: [*]volatile u32) type {
     return struct {
         controlRegister1: *volatile Cr1 = @ptrCast(&baseAddress[0]),
@@ -28,11 +29,11 @@ fn Usart(comptime baseAddress: [*]volatile u32) type {
 
         pub fn send(self: @This(), bytes: []const u8) void {
             for (bytes) |byte| {
-                while (self.interruptStatusRegister.*.transmitEmpty == 0) {}
+                while (self.interruptStatusRegister.transmitEmpty == 0) {}
                 self.txDataRegister.* = byte;
             }
 
-            while (self.interruptStatusRegister.*.transmissionComplete == 0) {}
+            while (self.interruptStatusRegister.transmissionComplete == 0) {}
         }
     };
 }
