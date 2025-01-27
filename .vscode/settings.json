@@ -1,0 +1,21 @@
+{
+    "files.associations": {
+        "*.json.liquid": "json",
+        "*.yaml.liquid": "yaml",
+        "*.md.liquid": "markdown",
+        "*.js.liquid": "liquid-javascript",
+        "*.css.liquid": "liquid-css",
+        "*.scss.liquid": "liquid-scss",
+        "*.njk": "nunjucks",
+        "*.html": "html",
+        "*.prolog": "prolog",
+        "*.wgsl": "wgsl",
+        "*.uiua": "uiua",
+        "*.lua": "lua",
+        "*.glua": "glua",
+        "*.pl": "perl",
+        "*.md": "markdown_latex_combined",
+        "*.latex": "latex",
+        "core_cm0.h": "c"
+    }
+}

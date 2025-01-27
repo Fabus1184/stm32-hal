@@ -3,7 +3,18 @@ const std = @import("std");
 fn Rtc(comptime baseAddress: [*]volatile u32) type {
     return struct {
         /// Time register
-        tr: *volatile packed struct(u32) { secondUnits: u4, secondTens: u3, _: u1 = 0, minuteUnits: u4, minuteTens: u3, __: u1 = 0, hourUnits: u4, hourTens: u2, amPmFormat: bool, ___: u9 = 0 } = @ptrCast(&baseAddress[0]),
+        tr: *volatile packed struct(u32) {
+            secondUnits: u4,
+            secondTens: u3,
+            _: u1 = 0,
+            minuteUnits: u4,
+            minuteTens: u3,
+            __: u1 = 0,
+            hourUnits: u4,
+            hourTens: u2,
+            amPmFormat: bool,
+            ___: u9 = 0,
+        } = @ptrCast(&baseAddress[0]),
         /// Date register
         dr: *volatile packed struct(u32) { dayUnits: u4, dayTens: u2, _: u2 = 0, monthUnits: u4, monthTens: u1, weekdayUnits: u3, yearUnits: u4, yearTens: u4, __: u8 = 0 } = @ptrCast(&baseAddress[1]),
         /// Control register

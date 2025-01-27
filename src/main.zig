@@ -6,6 +6,10 @@ const rtc = @import("rtc.zig");
 const power = @import("power.zig");
 const rcc = @import("rcc.zig");
 
+const cmsis = @cImport({
+    @cInclude("cmsis.c");
+});
+
 usingnamespace @import("lib.zig");
 
 pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
@@ -33,7 +37,32 @@ pub const std_options: std.Options = .{
     .logFn = log,
 };
 
-export fn mymain() noreturn {
+export fn systickHandler() callconv(.Naked) noreturn {
+    asm volatile (
+    // Save the original LR into R0
+        "mov r0, lr\n" ++
+            // Save R0 onto the stack
+            "push {r0}\n" ++
+            // Call the real handler
+            "bl systickHandlerReal\n" ++
+            // Restore the original LR from the stack
+            "pop {r0}\n" ++
+            // Move R0 back into LR
+            "mov lr, r0\n" ++
+            // Return from the interrupt
+            "bx lr\n" //
+        ::: "r0", "r1", "r2", "r3", "r12", "lr", "pc");
+}
+
+export fn systickHandlerReal() callconv(.C) void {
+    const systick: [*]volatile u32 = @ptrFromInt(0xE000_E010);
+    // reset the count flag
+    systick[0] = systick[0] & ~@as(u32, 0x10000);
+
+    std.log.info("SysTick interrupt", .{});
+}
+
+export fn main() noreturn {
     // RCC.setPeripheralClock(.GPIOA, true);
     rcc.RCC.ahbenr.gpioaen = true;
 
@@ -54,6 +83,8 @@ export fn mymain() noreturn {
     //RCC.setPeripheralClock2(.USART1, true);
     rcc.RCC.apb2enr.usart1en = true;
     uart.Usart1.init(115200);
+
+    std.log.info("Hello, world!", .{});
 
     gpio.GPIOA.setMode(LED_PIN, .Output);
     gpio.GPIOA.setOutputType(LED_PIN, .PushPull);
@@ -82,16 +113,23 @@ export fn mymain() noreturn {
     rtc.RTC.init();
     power.PWR.controlRegister.dbp = false;
 
+    // configure systick to tick every 1ms
+    if (cmsis.SysTick_Config(0xffffff) != 0) {
+        std.log.err("failed to configure systick", .{});
+    }
+    // enable systick interrupt
+    cmsis.NVIC_EnableIRQ(cmsis.SysTick_IRQn);
+
     while (true) {
         gpio.GPIOA.setLevel(LED_PIN, 1);
 
-        for (0..100_000) |_| {
+        for (0..1_000_000) |_| {
             asm volatile ("nop");
         }
 
         gpio.GPIOA.setLevel(LED_PIN, 0);
 
-        for (0..100_000) |_| {
+        for (0..1_000_000) |_| {
             asm volatile ("nop");
         }
 
