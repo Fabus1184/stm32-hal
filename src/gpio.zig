@@ -94,8 +94,8 @@ fn Gpio(comptime baseAddress: [*]volatile u32) type {
             }
         }
 
-        pub fn get_level(self: @This(), pin: u4) u1 {
-            return (self.inputDataRegister.* >> pin) & 1;
+        pub fn getLevel(self: @This(), pin: u4) u1 {
+            return @truncate((self.outputDataRegister.* >> pin) & 1);
         }
     };
 }

@@ -6,9 +6,7 @@ const rtc = @import("rtc.zig");
 const power = @import("power.zig");
 const rcc = @import("rcc.zig");
 
-const cmsis = @cImport({
-    @cInclude("cmsis.c");
-});
+const arm = @import("cortex-m0.zig");
 
 usingnamespace @import("lib.zig");
 
@@ -39,34 +37,36 @@ pub const std_options: std.Options = .{
 
 export fn systickHandler() callconv(.Naked) noreturn {
     asm volatile (
-    // Save the original LR into R0
-        "mov r0, lr\n" ++
-            // Save R0 onto the stack
-            "push {r0}\n" ++
-            // Call the real handler
-            "bl systickHandlerReal\n" ++
-            // Restore the original LR from the stack
-            "pop {r0}\n" ++
-            // Move R0 back into LR
-            "mov lr, r0\n" ++
-            // Return from the interrupt
-            "bx lr\n" //
-        ::: "r0", "r1", "r2", "r3", "r12", "lr", "pc");
+    // Push R4-R7 (callee-saved registers)
+        \\push {r4-r7}
+        // Save LR to R0 and push it onto the stack
+        \\mov r0, lr
+        \\push {r0}
+        // Call the real handler
+        \\bl systickHandlerReal
+        // Restore LR
+        \\pop {r0}
+        \\mov lr, r0
+        // Pop R4-R7 (callee-saved registers)
+        \\pop {r4-r7}
+        // Return from the interrupt
+        \\bx lr
+        ::: "r0", "r1", "r2", "r3", "r12", "lr", "pc", "memory");
 }
 
+const LED_PIN: u32 = 4;
+
 export fn systickHandlerReal() callconv(.C) void {
-    const systick: [*]volatile u32 = @ptrFromInt(0xE000_E010);
-    // reset the count flag
-    systick[0] = systick[0] & ~@as(u32, 0x10000);
+    // reset the systick interrupt flag
+    _ = arm.SYSTICK.csr.*;
 
     std.log.info("SysTick interrupt", .{});
+
+    gpio.GPIOA.setLevel(LED_PIN, ~gpio.GPIOA.getLevel(LED_PIN));
 }
 
 export fn main() noreturn {
-    // RCC.setPeripheralClock(.GPIOA, true);
     rcc.RCC.ahbenr.gpioaen = true;
-
-    const LED_PIN: u32 = 4;
 
     // usart 1 tx
     gpio.GPIOA.setAlternateFunction(2, .AF1);
@@ -79,19 +79,17 @@ export fn main() noreturn {
     // usart 1 rx
     gpio.GPIOA.setAlternateFunction(3, .AF1);
 
-    //RCC.reset_peripheral2(.USART1);
-    //RCC.setPeripheralClock2(.USART1, true);
     rcc.RCC.apb2enr.usart1en = true;
     uart.Usart1.init(115200);
 
     std.log.info("Hello, world!", .{});
+    std.log.info("CPUID: {any}", .{arm.CPUID});
 
     gpio.GPIOA.setMode(LED_PIN, .Output);
     gpio.GPIOA.setOutputType(LED_PIN, .PushPull);
     gpio.GPIOA.setOutputSpeed(LED_PIN, .Low);
     gpio.GPIOA.setPullMode(LED_PIN, .PullDown);
 
-    //rcc.RCC.bdcr.rtcen = true;
     rcc.RCC.apb1enr.pwren = true;
 
     power.PWR.controlRegister.dbp = true;
@@ -113,29 +111,18 @@ export fn main() noreturn {
     rtc.RTC.init();
     power.PWR.controlRegister.dbp = false;
 
-    // configure systick to tick every 1ms
-    if (cmsis.SysTick_Config(0xffffff) != 0) {
-        std.log.err("failed to configure systick", .{});
-    }
-    // enable systick interrupt
-    cmsis.NVIC_EnableIRQ(cmsis.SysTick_IRQn);
+    // configure systick to tick every 1s
+    arm.SYSTICK.rvr.value = 8_000_000;
+    arm.SYSTICK.cvr.value = 0;
+    arm.SYSTICK.csr.tickint = 1;
+    arm.SYSTICK.csr.clksrouce = 1;
+    arm.SYSTICK.csr.enable = true;
 
     while (true) {
-        gpio.GPIOA.setLevel(LED_PIN, 1);
-
         for (0..1_000_000) |_| {
             asm volatile ("nop");
         }
 
-        gpio.GPIOA.setLevel(LED_PIN, 0);
-
-        for (0..1_000_000) |_| {
-            asm volatile ("nop");
-        }
-
-        std.log.info("Hello, world!", .{});
         std.log.info("datetime is {} {}", .{ rtc.RTC.getDate(), rtc.RTC.getTime() });
     }
-
-    while (true) {}
 }

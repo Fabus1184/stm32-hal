@@ -10,13 +10,24 @@ __reset_stack_pointer = ORIGIN(RAM) + LENGTH(RAM);
 SECTIONS {
     .text : {
         LONG(__reset_stack_pointer);
-        LONG(main | 1);
-        
-        /* The whole interrupt table is 332 bytes long. Advance to that position. */
-        FILL(0x00);
-        . += 4;
-        LONG(systickHandler | 1);
-        . += (88 - 7) * 4;
+        LONG(main | 1); /* The reset handler */
+        . += 4; /* NMI handler */
+        . += 4; /* HardFault handler */
+        . += 4; /* MemoryManagement handler */
+        . += 4; /* BusFault handler */
+        . += 4; /* UsageFault handler */
+        . += 4; /* Reserved */
+        . += 4; /* Reserved */
+        . += 4; /* Reserved */
+        . += 4; /* Reserved */
+        . += 4; /* SVCall handler */
+        . += 4; /* DebugMonitor handler */
+        . += 4; /* Reserved */
+        . += 4; /* PendSV handler */
+        LONG(systickHandler | 1); /* SysTick handler */
+
+        /* External interrupt handlers */
+        . += 4 * 112;
 
         /* And here comes the rest of the code, ie. all symbols starting with .text */
         *(.text)

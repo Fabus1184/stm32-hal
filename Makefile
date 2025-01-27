@@ -7,13 +7,10 @@ all: build/main.elf
 	$(stm32prog) -c port=SWD -w build/main.elf 0x08000000
 	$(stm32prog) -c port=SWD -rst
 
-build/main.elf: build/main.zig.o build/cmsis.c.o
+build/main.elf: build/main.zig.o
 	arm-none-eabi-gcc $^ \
 		-mcpu=cortex-m0 -mthumb -Wall -flto -Oz \
 		--specs=nosys.specs -nostdlib -lgcc -T STM32F030F4.ld -o $@
-
-build/cmsis.c.o: src/cmsis.c
-	arm-none-eabi-gcc -ICMSIS_6/CMSIS -c -O2 -mcpu=cortex-m0 -mthumb -Wall $< -o $@
 
 build/%.zig.o: src/%.zig
 	zig build-obj \
