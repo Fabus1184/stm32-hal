@@ -9,22 +9,22 @@ __reset_stack_pointer = ORIGIN(RAM) + LENGTH(RAM);
 
 SECTIONS {
     .text : {
-        LONG(__reset_stack_pointer);
+        LONG(__reset_stack_pointer); /* Initial stack pointer value */
         LONG(main | 1); /* The reset handler */
-        . += 4; /* NMI handler */
-        . += 4; /* HardFault handler */
-        . += 4; /* MemoryManagement handler */
-        . += 4; /* BusFault handler */
-        . += 4; /* UsageFault handler */
-        . += 4; /* Reserved */
-        . += 4; /* Reserved */
-        . += 4; /* Reserved */
-        . += 4; /* Reserved */
-        . += 4; /* SVCall handler */
-        . += 4; /* DebugMonitor handler */
-        . += 4; /* Reserved */
-        . += 4; /* PendSV handler */
-        LONG(systickHandler | 1); /* SysTick handler */
+        LONG(exceptionHandler | 1); /* NMI handler */
+        LONG(exceptionHandler | 1); /* HardFault handler */
+        LONG(exceptionHandler | 1); /* MemoryManagement handler */
+        LONG(exceptionHandler | 1); /* BusFault handler */
+        LONG(exceptionHandler | 1); /* UsageFault handler */
+        LONG(exceptionHandler | 1); /* Reserved */
+        LONG(exceptionHandler | 1); /* Reserved */
+        LONG(exceptionHandler | 1); /* Reserved */
+        LONG(exceptionHandler | 1); /* Reserved */
+        LONG(exceptionHandler | 1); /* SVCall handler */
+        LONG(exceptionHandler | 1); /* DebugMonitor handler */
+        LONG(exceptionHandler | 1); /* Reserved */
+        LONG(exceptionHandler | 1); /* PendSV handler */
+        LONG(exceptionHandler | 1); /* SysTick handler
 
         /* External interrupt handlers */
         . += 4 * 112;
@@ -35,9 +35,26 @@ SECTIONS {
 
         . = ALIGN(4);
     } > FLASH  /* Put this in the flash memory region */
+
+    .data : {
+        _start_data = .;
+        *(.data)
+        . = ALIGN(4);
+        _end_data = .;
+    } > RAM AT > FLASH
+
+    .bss : {
+        _start_bss = .;
+        *(.bss)
+        *(COMMON)
+        . = ALIGN(4);
+        _end_bss = .;
+    } > RAM
     
     .ARM.exidx : {
         *(.ARM.exidx*)
         . = ALIGN(4);
     } > FLASH
 }
+
+_start_data_load = LOADADDR(.data);

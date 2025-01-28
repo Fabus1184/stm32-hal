@@ -7,7 +7,7 @@ pub const CPUID: *const packed struct(u32) {
 } = @ptrFromInt(0xE000_ED00);
 
 pub const ICSR: *volatile packed struct(u32) {
-    /// Contains the activ exception number
+    /// Contains the active exception number
     /// - 0: Thread mode
     /// - Non-zero: exception number
     vectactive: u6,

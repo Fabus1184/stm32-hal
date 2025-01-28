@@ -1,4 +1,4 @@
-export fn __aeabi_memclr4(ptr: *anyopaque, numBytes: usize) void {
+export fn __aeabi_memclr(ptr: *anyopaque, numBytes: usize) void {
     var dest: [*c]u8 = @ptrCast(ptr);
     for (0..numBytes) |i| {
         dest[i] = 0;
