@@ -131,7 +131,7 @@ export fn main() noreturn {
     power.PWR.controlRegister.dbp = false;
 
     // configure systick to tick every 1s
-    arm.SYSTICK.rvr.value = 8_000_000 >> 3;
+    arm.SYSTICK.rvr.value = 8_000_000;
     arm.SYSTICK.cvr.value = 0;
     arm.SYSTICK.csr.tickint = 1;
     arm.SYSTICK.csr.clksrouce = 1;
