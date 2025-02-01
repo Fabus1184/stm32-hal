@@ -8,6 +8,7 @@ const rcc = @import("hal/STM32F407VE/rcc.zig");
 const usart = @import("hal/STM32F407VE/usart.zig");
 const rng = @import("hal/STM32F407VE/rng.zig");
 const ethernet = @import("hal/STM32F407VE/ethernet.zig");
+const flash = @import("hal/STM32F407VE/flash.zig");
 
 usingnamespace @import("aeabi.zig");
 
@@ -38,6 +39,8 @@ const USART3 = usart.Usart(@ptrFromInt(0x4000_4800)){};
 const ETH = ethernet.Ethernet(@ptrFromInt(0x4002_8000)){};
 
 var RNG = rng.Rng(@ptrFromInt(0x5006_0800)){};
+
+const FLASH = flash.Flash(@ptrFromInt(0x4002_3C00)){};
 
 pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
     var buffer: [255]u8 = undefined;
@@ -167,7 +170,7 @@ export fn main() noreturn {
     RCC.cfgr.ppre2 = .notDivided;
 
     // configure systick to tick every 1s
-    core.SYSTICK.rvr.value = 1_000;
+    core.SYSTICK.rvr.value = 10_000_000;
     core.SYSTICK.cvr.value = 0;
     core.SYSTICK.csr.tickint = 1;
     core.SYSTICK.csr.clksrouce = 1;
@@ -195,15 +198,16 @@ export fn main() noreturn {
     // configure PLL
     RCC.pllcgfr.pllSrc = .hse;
     RCC.pllcgfr.pllM = 25;
-    RCC.pllcgfr.pllN = 48 * 2;
-    RCC.pllcgfr.pllP = 1;
-    RCC.pllcgfr.pllQ = 2;
+    RCC.pllcgfr.pllN = 336;
+    RCC.pllcgfr.pllP = .div2;
+    RCC.pllcgfr.pllQ = 7;
 
     RCC.cr.pllOn = true;
     std.log.debug("waiting for PLL to stabilize", .{});
     while (!RCC.cr.pllRdy) {}
 
     std.log.debug("PLL stabilized, switching to PLL", .{});
+    FLASH.acr.latency = 5;
     RCC.cfgr.sw = .pll;
     while (RCC.cfgr.sws != .pll) {}
 
@@ -218,8 +222,6 @@ export fn main() noreturn {
         std.log.err("failed to initialize RNG: {}\n", .{err});
     };
 
-    //setupEth();
-
     while (true) {
         for (0..2_000_000) |_| {
             asm volatile ("nop");
@@ -230,8 +232,6 @@ export fn main() noreturn {
 
         std.log.info("Hello, world!", .{});
         std.log.debug("random number: {!x:0>8}", .{RNG.readU32()});
-
-        //sendEthFrame();
     }
 }
 

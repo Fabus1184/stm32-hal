@@ -22,7 +22,21 @@ const PllConfigRegister = packed struct(u32) {
     pllN: u9,
     _0: u1,
     /// Main PLL division factor for main system clock
-    pllP: u2,
+    pllP: enum(u2) {
+        div2 = 0b00,
+        div4 = 0b01,
+        div6 = 0b10,
+        div8 = 0b11,
+
+        fn value(self: @This()) u32 {
+            return switch (self) {
+                .div2 => 2,
+                .div4 => 4,
+                .div6 => 6,
+                .div8 => 8,
+            };
+        }
+    },
     _1: u4,
     /// Main PLL and audio PLL (PLLI2S) entry clock source
     pllSrc: enum(u1) {
@@ -550,16 +564,16 @@ pub fn Rcc(
         const std = @import("std");
 
         pub fn pllClock(self: @This()) struct { pClock: u32, qClock: u32 } {
-            const pllSrc: u32 = switch (self.pllcgfr.pllSrc) {
+            const pllSrc: u64 = switch (self.pllcgfr.pllSrc) {
                 .hsi => HSI_FREQ,
                 .hse => HSE_FREQ,
             };
 
-            const fVco: u32 = (pllSrc * @as(u32, self.pllcgfr.pllN)) / @as(u32, self.pllcgfr.pllM);
+            const fVco: u64 = (pllSrc * @as(u64, self.pllcgfr.pllN)) / @as(u64, self.pllcgfr.pllM);
 
             return .{
-                .pClock = fVco / @as(u32, self.pllcgfr.pllP),
-                .qClock = fVco / @as(u32, self.pllcgfr.pllQ),
+                .pClock = @intCast(fVco / @as(u64, self.pllcgfr.pllP.value())),
+                .qClock = @intCast(fVco / @as(u64, self.pllcgfr.pllQ)),
             };
         }
 

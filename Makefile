@@ -11,7 +11,7 @@ clean:
 	$(stm32prog) -c port=SWD -rst
 
 .PRECIOUS: build/%.elf
-build/%.elf: build/%.zig.o
+build/%.elf: build/%.zig.o build/compiler_rt.o
 	arm-none-eabi-gcc $^ \
 		-mcpu=$(CPU) -mthumb -Wall -flto -Os \
 		--specs=nosys.specs -nostdlib -T $*.ld -o $@
