@@ -1,6 +1,4 @@
-const std = @import("std");
-
-fn Gpio(comptime baseAddress: [*]volatile u32) type {
+pub fn Gpio(comptime baseAddress: [*]volatile u32) type {
     return struct {
         const Self = @This();
 
@@ -41,18 +39,26 @@ fn Gpio(comptime baseAddress: [*]volatile u32) type {
         };
 
         const AlternateFunction = enum(u4) {
-            AF0 = 0b0000,
-            AF1 = 0b0001,
-            AF2 = 0b0010,
-            AF3 = 0b0011,
-            AF4 = 0b0100,
-            AF5 = 0b0101,
-            AF6 = 0b0110,
-            AF7 = 0b0111,
+            AF0 = 0,
+            AF1 = 1,
+            AF2 = 2,
+            AF3 = 3,
+            AF4 = 4,
+            AF5 = 5,
+            AF6 = 6,
+            AF7 = 7,
+            AF8 = 8,
+            AF9 = 9,
+            AF10 = 10,
+            AF11 = 11,
+            AF12 = 12,
+            AF13 = 13,
+            AF14 = 14,
+            AF15 = 15,
         };
 
         fn setBitmask32(comptime T: type, register: *volatile u32, shift: u4, value: T) void {
-            const shiftAmount = shift * @bitSizeOf(T);
+            const shiftAmount: u5 = @as(u5, shift) * @bitSizeOf(T);
             const maxValue: u32 = (1 << @bitSizeOf(T)) - 1;
             const realValue = switch (@typeInfo(T)) {
                 .Int => |_| value,
@@ -78,6 +84,17 @@ fn Gpio(comptime baseAddress: [*]volatile u32) type {
             Self.setBitmask32(PullMode, self.pullRegister, pin, pull_mode);
         }
 
+        pub fn setupOutputPin(self: @This(), pin: u4, output_type: OutputType, output_speed: OutputSpeed) void {
+            self.setMode(pin, .Output);
+            self.setOutputType(pin, output_type);
+            self.setOutputSpeed(pin, output_speed);
+        }
+
+        pub fn setupInputPin(self: @This(), pin: u4, pull_mode: PullMode) void {
+            self.setMode(pin, .Input);
+            self.setPullMode(pin, pull_mode);
+        }
+
         pub fn setAlternateFunction(self: @This(), pin: u4, f: AlternateFunction) void {
             if (pin < 8) {
                 Self.setBitmask32(AlternateFunction, self.alternateFunctionLowRegister, pin, f);
@@ -88,20 +105,28 @@ fn Gpio(comptime baseAddress: [*]volatile u32) type {
 
         pub fn setLevel(self: @This(), pin: u4, level: u1) void {
             if (level == 1) {
-                Self.setBitmask32(u1, self.bitSetResetRegister, pin, 1);
+                self.outputDataRegister.* |= @as(u32, 1) << pin;
             } else {
-                Self.setBitmask32(u1, self.bitResetRegister, pin, 1);
+                self.outputDataRegister.* &= ~(@as(u32, 1) << pin);
             }
         }
 
         pub fn getLevel(self: @This(), pin: u4) u1 {
-            return @truncate((self.outputDataRegister.* >> pin) & 1);
+            return @truncate((self.inputDataRegister.* >> pin) & 1);
+        }
+
+        pub fn toggle(self: @This(), pin: u4) void {
+            self.setLevel(pin, ~self.getLevel(pin));
+        }
+
+        pub fn getAlternateFunction(self: @This(), pin: u4) AlternateFunction {
+            if (pin < 8) {
+                const value: u4 = @truncate(self.alternateFunctionLowRegister.* >> (pin * 4) & 0xF);
+                return @enumFromInt(value);
+            } else {
+                const value: u4 = @truncate(self.alternateFunctionHighRegister.* >> ((pin - 8) * 4) & 0xF);
+                return @enumFromInt(value);
+            }
         }
     };
 }
-
-pub const GPIOA = Gpio(@ptrFromInt(0x48000000)){};
-pub const GPIOB = Gpio(@ptrFromInt(0x48000400)){};
-pub const GPIOC = Gpio(@ptrFromInt(0x48000800)){};
-pub const GPIOD = Gpio(@ptrFromInt(0x48000C00)){};
-pub const GPIOF = Gpio(@ptrFromInt(0x48001400)){};

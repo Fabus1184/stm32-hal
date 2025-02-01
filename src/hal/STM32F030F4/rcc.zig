@@ -1,5 +1,5 @@
 /// Reset and clock control
-fn Rcc(comptime baseAddress: [*]volatile u32) type {
+pub fn Rcc(comptime baseAddress: [*]volatile u32) type {
     return struct {
         /// Clock control register
         cr: *volatile u32 = @ptrCast(&baseAddress[0]),
@@ -98,5 +98,3 @@ fn Rcc(comptime baseAddress: [*]volatile u32) type {
         cr2: *volatile u32 = @ptrCast(&baseAddress[13]),
     };
 }
-
-pub const RCC = Rcc(@ptrFromInt(0x4002_1000)){};

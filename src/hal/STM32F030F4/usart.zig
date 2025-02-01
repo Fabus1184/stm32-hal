@@ -1,7 +1,7 @@
 const std = @import("std");
 
 /// Universal Synchronous Asynchronous Receiver Transmitter
-fn Usart(comptime baseAddress: [*]volatile u32) type {
+pub fn Usart(comptime baseAddress: [*]volatile u32) type {
     return struct {
         controlRegister1: *volatile Cr1 = @ptrCast(&baseAddress[0]),
         controlRegister2: *volatile Cr2 = @ptrCast(&baseAddress[1]),
@@ -37,5 +37,3 @@ fn Usart(comptime baseAddress: [*]volatile u32) type {
         }
     };
 }
-
-pub const Usart1 = Usart(@ptrFromInt(0x4001_3800)){};
