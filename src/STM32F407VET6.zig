@@ -222,6 +222,8 @@ export fn main() noreturn {
         std.log.err("failed to initialize RNG: {}\n", .{err});
     };
 
+    setupEth();
+
     while (true) {
         for (0..2_000_000) |_| {
             asm volatile ("nop");
