@@ -50,7 +50,7 @@ SECTIONS {
         . = ALIGN(4);
         _end_bss = .;
     } > RAM
-    
+
     .ARM.exidx : {
         *(.ARM.exidx*)
         . = ALIGN(4);

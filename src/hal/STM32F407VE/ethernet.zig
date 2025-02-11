@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const maccr = packed struct(u32) {
     _0: u2,
     /// Receiver enable
@@ -41,11 +43,64 @@ const maccr = packed struct(u32) {
     cstf: u1,
     _5: u6,
 };
-const macffr = packed struct(u32) { pm: u1, hu: u1, hm: u1, daif: u1, pam: u1, bfd: u1, pcf: u2, saif: u1, saf: u1, hpf: u1, _0: u20, ra: u1 };
+const macffr = packed struct(u32) {
+    /// Promiscuous mode
+    pm: u1,
+    /// Hash unicast
+    hu: u1,
+    /// Hash multicast
+    hm: u1,
+    /// Destination address inverse filtering
+    daif: u1,
+    /// Pass all multicast
+    pam: u1,
+    /// Broadcast frames disable
+    bfd: u1,
+    /// Pass control frames
+    pcf: u2,
+    /// Source address inverse filtering
+    saif: u1,
+    /// Source address filter
+    saf: u1,
+    /// Hash or perfect filter
+    hpf: u1,
+    _0: u20,
+    /// Receive all
+    ra: u1,
+};
 
-const macmiiar = packed struct(u32) { mb: u1, mw: u1, cr: u4, mr: u5, pa: u5, _0: u16 };
+const macmiiar = packed struct(u32) {
+    /// MII busy
+    mb: bool,
+    /// MII write
+    mw: u1,
+    /// Clock range
+    cr: u4,
+    /// MII register
+    mr: u5,
+    /// PHY address
+    pa: u5,
+    _0: u16,
+};
 
-const macfcr = packed struct(u32) { fcb_bpa: u1, tfce: u1, rfce: u1, upfd: u1, plt: u2, _0: u1, zqpd: u1, _1: u8, pt: u16 };
+const macfcr = packed struct(u32) {
+    /// Flow control busy/back pressure activate
+    fcbBpa: u1,
+    /// Transmit flow control enable
+    tfce: u1,
+    /// Receive flow control enable
+    rfce: u1,
+    /// Unicast pause frame detect
+    upfd: u1,
+    /// Pause low threshold
+    plt: u2,
+    _0: u1,
+    /// Zero-quanta pause disable
+    zqpd: u1,
+    _1: u8,
+    /// pause time
+    pt: u16,
+};
 const macvlantr = packed struct(u32) { vlanti: u16, vlantc: u1, _0: u15 };
 
 const macpmtcsr = packed struct(u32) {
@@ -200,32 +255,92 @@ const dmabmr = packed struct(u32) {
 };
 
 const dmasr = packed struct(u32) {
+    /// Transmit status
     ts: u1,
+    /// Transmit process stopped status
     tpss: u1,
+    /// Transmit buffer unavailable status
     tbus: u1,
+    /// Transmit jabber timeout status
     tjts: u1,
+    /// Receive overflow status
     ros: u1,
+    /// Transmit underflow status
     tus: u1,
+    /// Receive status
     rs: u1,
+    /// Receive buffer unavailable status
     rbus: u1,
+    /// Receive process stopped status
     rpss: u1,
+    /// Receive watchdog timeout status
     rwts: u1,
+    /// Early transmit status
     ets: u1,
     _0: u2,
+    /// Fatal bus error status
     fbes: u1,
+    /// Early receive status
     ers: u1,
+    /// Abnormal interrupt summary
     ais: u1,
+    /// Normal interrupt summary
     nis: u1,
+    /// Receive process state
     rps: u3,
-    tps: u3,
+    /// Transmit process state
+    tps: enum(u3) {
+        stopped = 0b000,
+        fetching = 0b001,
+        waiting = 0b010,
+        reading = 0b011,
+        suspended = 0b110,
+        closing = 0b111,
+        _,
+    },
+    /// Error bits status
     ebs: u3,
     _1: u1,
+    /// MMC status
     mmcs: u1,
+    /// PMT status
     pmts: u1,
+    /// Timestamp trigger status
     tsts: u1,
     _2: u2,
 };
-const dmaomr = packed struct(u32) { _0: u1, sr: u1, osf: u1, rtc: u2, _1: u1, fugf: u1, fef: u1, _2: u5, st: u1, ttc: u3, _3: u3, ftf: u1, tsf: u1, _4: u2, dfrf: u1, rsf: u1, dtcefd: u1, _5: u5 };
+const dmaomr = packed struct(u32) {
+    _0: u1,
+    /// Start/stop receive
+    sr: u1,
+    /// Operate on second frame
+    osf: u1,
+    /// Receive threshold control
+    rtc: u2,
+    _1: u1,
+    /// Forward undersized good frames
+    fugf: u1,
+    /// Forward error frames
+    fef: u1,
+    _2: u5,
+    /// Start/stop transmit
+    st: u1,
+    /// Transmit threshold control
+    ttc: u3,
+    _3: u3,
+    /// Flush transmit FIFO
+    ftf: u1,
+    /// Transmit store and forward
+    tsf: u1,
+    _4: u2,
+    /// Disable flushing of received frames
+    dfrf: u1,
+    /// Receive store and forward
+    rsf: u1,
+    /// Dropping of TCP/IP checksum error frames disable
+    dtcefd: u1,
+    _5: u5,
+};
 const dmaier = packed struct(u32) { tie: u1, tpsie: u1, tbuie: u1, tjtie: u1, roie: u1, tuie: u1, rie: u1, rbuie: u1, rpsie: u1, rwtie: u1, etie: u1, _0: u2, fbeie: u1, erie: u1, aise: u1, nise: u1, _1: u15 };
 const dmamfbocr = packed struct(u32) { mfc: u16, omfc: u1, mfa: u11, ofoc: u1, _0: u3 };
 
@@ -233,11 +348,15 @@ pub fn Ethernet(baseAddress: [*]align(4) volatile u8) type {
     return struct {
         // MAC registers
         maccr: *volatile maccr = @ptrCast(&baseAddress[0x00]),
+        /// MAC frame filter register
         macffr: *volatile macffr = @ptrCast(&baseAddress[0x04]),
         machthr: *volatile u32 = @ptrCast(&baseAddress[0x08]),
         machtlr: *volatile u32 = @ptrCast(&baseAddress[0x0C]),
+        /// MAC MII address register
         macmiiar: *volatile macmiiar = @ptrCast(&baseAddress[0x10]),
-        macmiidr: *volatile packed struct(u32) { value: u16, _0: u16 } = @ptrCast(&baseAddress[0x14]),
+        /// MAC MII data register
+        macmiidr: *volatile packed struct(u32) { data: u16, _0: u16 } = @ptrCast(&baseAddress[0x14]),
+        /// MAC flow control register
         macfcr: *volatile macfcr = @ptrCast(&baseAddress[0x18]),
         macvlantr: *volatile macvlantr = @ptrCast(&baseAddress[0x1C]),
         macrwuffr: *volatile u32 = @ptrCast(&baseAddress[0x28]),
@@ -278,20 +397,120 @@ pub fn Ethernet(baseAddress: [*]align(4) volatile u8) type {
         ptptpsr: *volatile packed struct(u32) { tsso: u1, tsttr: u1, _0: u30 } = @ptrCast(&baseAddress[0x728]),
         ptpppscr: *volatile packed struct(u32) { ppsfreq: u3, _0: u29 } = @ptrCast(&baseAddress[0x72C]),
         // DMA registers
+        /// DMA bus mode register
         dmabmr: *volatile dmabmr = @ptrCast(&baseAddress[0x1000]),
+        /// DMA transmit poll demand register
         dmatpdr: *volatile u32 = @ptrCast(&baseAddress[0x1004]),
+        /// DMA receive poll demand register
         dmarpdr: *volatile u32 = @ptrCast(&baseAddress[0x1008]),
+        /// DMA receive descriptor list address register
         dmardlar: *volatile u32 = @ptrCast(&baseAddress[0x100C]),
+        /// DMA transmit descriptor list address register
         dmatdlar: *volatile u32 = @ptrCast(&baseAddress[0x1010]),
+        /// DMA status register
         dmasr: *volatile dmasr = @ptrCast(&baseAddress[0x1014]),
+        /// DMA operation mode register
         dmaomr: *volatile dmaomr = @ptrCast(&baseAddress[0x1018]),
+        /// DMA interrupt enable register
         dmaier: *volatile dmaier = @ptrCast(&baseAddress[0x101C]),
+        /// DMA missed frame and buffer overflow counter register
         dmamfbocr: *volatile dmamfbocr = @ptrCast(&baseAddress[0x1020]),
+        /// DMA receive status watchdog timer register
         dmarswtr: *volatile packed struct(u32) { rswtc: u8, _0: u24 } = @ptrCast(&baseAddress[0x1024]),
-        // DMA channel registers
+        /// DMA current host transmit descriptor register
         dmachtdr: *volatile u32 = @ptrCast(&baseAddress[0x1048]),
+        /// DMA current host receive descriptor register
         dmachrdr: *volatile u32 = @ptrCast(&baseAddress[0x104C]),
+        /// DMA current host transmit buffer address register
         dmachtbar: *volatile u32 = @ptrCast(&baseAddress[0x1050]),
+        /// DMA current host receive buffer address register
         dmachrbar: *volatile u32 = @ptrCast(&baseAddress[0x1054]),
+
+        /// PHY Basic Mode Control Register
+        const phybmcr = packed struct(u16) {
+            /// Collision test
+            ct: u1,
+            _0: u7,
+            /// Full duplex mode
+            fdm: u1,
+            /// Restart auto-negotiation
+            ranc: u1,
+            /// Isolate
+            iso: u1,
+            /// Power down
+            pd: u1,
+            /// Auto-negotiation enable
+            ane: u1,
+            /// Speed select
+            ss: u1,
+            /// Loopback
+            lb: u1,
+            /// Reset
+            rst: u1,
+        };
+        /// PHY Basic Mode Status Register
+        const phybmsr = packed struct(u16) {
+            _0: u2,
+            /// Link status
+            ls: enum(u1) {
+                down = 0,
+                up = 1,
+            },
+            _1: u2,
+            /// Auto-negotiation complete
+            anc: u1,
+            _2: u5,
+            /// 10Base-T half duplex support
+            hds: u1,
+            /// 10Base-T full duplex support
+            fds: u1,
+            /// 100Base-TX half duplex support
+            hdx: u1,
+            /// 100Base-TX full duplex support
+            fdx: u1,
+            /// 100Base-T4 support
+            t4: u1,
+        };
+
+        pub fn readPhyStatus(self: @This(), phy: u5) phybmsr {
+            return @bitCast(self.readPhyRegister(phy, 1));
+        }
+
+        pub fn readPhyControl(self: @This(), phy: u5) phybmcr {
+            return @bitCast(self.readPhyRegister(phy, 0));
+        }
+
+        pub fn writePhyControl(self: @This(), phy: u5, data: phybmcr) void {
+            self.writePhyRegister(phy, 0, @bitCast(data));
+        }
+
+        fn readPhyRegister(self: @This(), phy: u5, reg: u5) u16 {
+            while (self.macmiiar.mb) {}
+
+            self.macmiiar.mw = 0;
+            self.macmiiar.cr = 0b0111;
+            self.macmiiar.mr = reg;
+            self.macmiiar.pa = phy;
+
+            self.macmiiar.mb = true;
+
+            while (self.macmiiar.mb) {}
+
+            return self.macmiidr.data;
+        }
+
+        fn writePhyRegister(self: @This(), phy: u5, reg: u5, data: u16) void {
+            while (self.macmiiar.mb) {}
+
+            self.macmiiar.mw = 1;
+            self.macmiiar.cr = 0b0111;
+            self.macmiiar.mr = reg;
+            self.macmiiar.pa = phy;
+            self.macmiidr.data = data;
+
+            self.macmiiar.mb = true;
+
+            while (self.macmiiar.mb) {}
+        }
     };
 }

@@ -9,6 +9,8 @@ const usart = @import("hal/STM32F407VE/usart.zig");
 const rng = @import("hal/STM32F407VE/rng.zig");
 const ethernet = @import("hal/STM32F407VE/ethernet.zig");
 const flash = @import("hal/STM32F407VE/flash.zig");
+const syscfg = @import("hal/STM32F407VE/syscfg.zig");
+const dma = @import("hal/STM32F407VE/dma.zig");
 
 usingnamespace @import("aeabi.zig");
 
@@ -42,10 +44,15 @@ var RNG = rng.Rng(@ptrFromInt(0x5006_0800)){};
 
 const FLASH = flash.Flash(@ptrFromInt(0x4002_3C00)){};
 
+const SYSCFG = syscfg.Syscfg(@ptrFromInt(0x4001_3800)){};
+
+const DMA1 = dma.Dma(@ptrFromInt(0x4002_6000)){};
+const DMA2 = dma.Dma(@ptrFromInt(0x4002_6400)){};
+
 pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
     var buffer: [255]u8 = undefined;
     const result = std.fmt.bufPrint(&buffer, format, args) catch {
-        std.log.err("failed to format log message\n", .{});
+        std.log.err("failed to format log message", .{});
         return;
     };
 
@@ -65,7 +72,7 @@ pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), c
         result,
         reset,
     }) catch {
-        std.log.err("failed to format log message 2\n", .{});
+        std.log.err("failed to format log message 2", .{});
         return;
     };
 
@@ -146,6 +153,9 @@ export fn main() noreturn {
 
     RCC.apb1enr.usart3En = true;
 
+    RCC.ahb1enr.dma1En = true;
+    RCC.ahb1enr.dma2En = true;
+
     // configure GPIOA B10 as USART3 TX
     const UART_TX = 8;
     GPIOD.setAlternateFunction(UART_TX, .AF7);
@@ -219,119 +229,271 @@ export fn main() noreturn {
 
     RCC.ahb2enr.rngEn = true;
     RNG.init() catch |err| {
-        std.log.err("failed to initialize RNG: {}\n", .{err});
+        std.log.err("failed to initialize RNG: {}", .{err});
     };
 
-    setupEth();
+    var dmaBuffer: [16]u8 align(4) = undefined;
+    @memcpy(dmaBuffer[0..14], "Hello, world!\n");
 
     while (true) {
-        for (0..2_000_000) |_| {
+        std.log.info("setting up DMA stream 3", .{});
+
+        @as(*volatile u32, @ptrCast(DMA1.s3cr)).* = @as(*volatile u32, @ptrCast(DMA1.s3cr)).* |
+            @as(u32, @bitCast(dma.scr{
+            .en = 0,
+            .dmeie = 0,
+            .teie = 0,
+            .htie = 0,
+            .tcie = 0,
+            .pfctrl = .dma,
+            .dir = .memoryToPeripheral,
+            .circ = 0,
+            .pinc = 0,
+            .minc = 1,
+            .psize = .byte,
+            .msize = .byte,
+            .pincos = 0,
+            .pl = .medium,
+            .dbm = 0,
+            .ct = 0,
+            .pburst = .single,
+            .mburst = .single,
+            .chsel = 4,
+        }));
+
+        std.log.info("setting up DMA with peripheral address {x}, memory address {x}", .{ @intFromPtr(USART3.dr), @intFromPtr(&dmaBuffer) });
+        DMA1.s3m0ar.* = @intFromPtr(&dmaBuffer);
+        DMA1.s3par.* = @intFromPtr(USART3.dr);
+        std.log.info("set peripheral address {x}, memory address {x}", .{ DMA1.s3par.*, DMA1.s3m0ar.* });
+
+        std.log.info("s3ndtr is at {x}", .{@intFromPtr(DMA1.s3ndtr)});
+        std.log.info("setting number of data to transfer, prev: {?}", .{DMA1.s3ndtr});
+        // DMA1.s3ndtr.ndt = 1;
+        @as(*volatile u32, @ptrCast(DMA1.s3ndtr)).* = 14;
+        std.log.info("set number of data to transfer, now: {?}", .{DMA1.s3ndtr});
+
+        USART3.cr3.dmat = 1;
+        USART3.sr.tc = 0;
+
+        std.log.info("starting DMA transfer", .{});
+
+        @as(*volatile u32, @ptrCast(DMA1.s3cr)).* = @as(*volatile u32, @ptrCast(DMA1.s3cr)).* | @as(u32, @bitCast(dma.scr{ .en = 1 }));
+
+        for (0..10_000_000) |_| {
             asm volatile ("nop");
         }
 
-        GPIOE.setLevel(LED1, ~GPIOE.getLevel(LED1));
-        GPIOE.setLevel(LED2, ~GPIOE.getLevel(LED2));
+        std.log.info("DMA transfer started, en = {d}", .{DMA1.s3cr.en});
 
-        std.log.info("Hello, world!", .{});
-        std.log.debug("random number: {!x:0>8}", .{RNG.readU32()});
+        std.log.info("waiting for DMA transfer to complete", .{});
+        while (@as(*volatile u32, @ptrCast(DMA1.lisr)).* & (1 << 27) == 0) {
+            std.log.debug("DMA transfer in progress, ndtr: {?}, lisr: {x}", .{ DMA1.s3ndtr, @as(*volatile u32, @ptrCast(DMA1.lisr)).* });
+        }
+        std.log.info("DMA transfer completed", .{});
+
+        // clear transfer complete flag
+        @as(*volatile u32, @ptrCast(DMA1.lifcr)).* = @as(*volatile u32, @ptrCast(DMA1.lifcr)).* | (1 << 27);
+
+        for (0..30_000_000) |_| {
+            asm volatile ("nop");
+        }
     }
+
+    //
+    //
+    //setupEth();
+    //
+    //while (true) {
+    //    for (0..10_000_000) |_| {
+    //        asm volatile ("nop");
+    //    }
+    //
+    //    GPIOE.setLevel(LED1, ~GPIOE.getLevel(LED1));
+    //    GPIOE.setLevel(LED2, ~GPIOE.getLevel(LED2));
+    //
+    //    std.log.info("Hello, world!", .{});
+    //    std.log.debug("random number: {!x:0>8}", .{RNG.readU32()});
+    //
+    //    sendEthFrame();
+    //}
 }
 
+const TransmitDescriptor = packed struct {
+    status: packed struct(u32) {
+        status: packed struct(u17) {
+            /// deferred bit
+            df: u1,
+            /// underflow error
+            uf: u1,
+            /// excessive deferral
+            ed: u1,
+            /// collision count
+            cc: u4,
+            /// VLAN frame
+            vf: u1,
+            /// excessive collision
+            ec: u1,
+            /// late collision
+            lco: u1,
+            /// no carrier
+            nc: u1,
+            /// loss of carrier
+            lca: u1,
+            /// IP payload error
+            ipe: u1,
+            /// frame flushed
+            ff: u1,
+            /// jabber timeout
+            jt: u1,
+            /// error summary
+            es: u1,
+            /// IP header error
+            ihe: u1,
+        } = @bitCast(@as(u17, 0)),
+        /// transmit time stamp status
+        ttss: u1 = 0,
+        _0: u2 = 0,
+        ctrl: packed struct(u4) {
+            /// second address chained
+            tch: u1,
+            /// transmit end of ring
+            ter: u1,
+            /// Checksum insertion control
+            cic: enum(u2) {
+                disabled = 0b00,
+                onlyIpHeader = 0b01,
+                ipHeaderAndPayload = 0b10,
+                all = 0b11,
+            } = .disabled,
+        },
+        _1: u1 = 0,
+        /// transmit timestamp enable
+        ttse: u1 = 0,
+        ctrl2: packed struct(u5) {
+            /// disable padding
+            dp: u1 = 0,
+            /// disable crc
+            dc: u1 = 0,
+            /// first segment
+            fs: u1,
+            /// last segment
+            ls: u1,
+            /// interrupt on completion
+            ic: u1 = 0,
+        },
+        /// own bit
+        own: u1,
+    },
+    controlBufferSize: packed struct(u32) {
+        buffer1ByteCount: u13,
+        _0: u3 = 0, // reserved
+        buffer2ByteCount: u13,
+        _1: u3 = 0, // reserved
+    },
+    buffer1Address: u32,
+    nextDescriptorAddress: u32,
+};
+
+var txBuffer: [1024]u8 align(4) = undefined;
+var txDescriptor: TransmitDescriptor align(4) = undefined;
+
 fn sendEthFrame() void {
-    const DMADescriptor = packed struct {
-        status: u32,
-        controlBufferSize: u32,
-        buffer1Address: *anyopaque,
-        _0: u32 = 0,
-    };
-
-    var txBuffer: [128]u8 align(4) = undefined;
-
     const frame = [_]u8{
-        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // destination MAC broadcast
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // source MAC
-        0x08, 0x00, // type: IPv4
-        'H', 'e', 'l', 'l', 'o', ',', ' ', 'w', 'o', 'r', 'l', 'd', '!', // payload
-    };
-    for (frame, 0..) |byte, i| {
-        txBuffer[i] = byte;
-    }
-    var desc: DMADescriptor = .{
-        .status = @as(u32, 1) << 31,
-        .buffer1Address = &txBuffer,
-        .controlBufferSize = frame.len,
+        // Destination MAC (6 bytes)
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        // Source MAC (6 bytes)
+        0x06, 0x05, 0x04, 0x03, 0x02, 0x01,
+        // MAC client length / type (2 bytes)
+        0x08, 0x00,
+        // Payload (13 bytes)
+        'H',  'e',  'l',  'l',
+        'o',  ',',  ' ',  'w',  'o',  'r',
+        'l',  'd',  '!',
     };
 
-    ETH.dmatdlar.* = @intFromPtr(&desc);
+    txDescriptor = .{
+        .status = .{ .ctrl = .{ .tch = 1, .ter = 1 }, .ctrl2 = .{ .fs = 1, .ls = 1 }, .own = 1 },
+        .controlBufferSize = .{ .buffer1ByteCount = frame.len, .buffer2ByteCount = 0 },
+        .buffer1Address = @intFromPtr(&txBuffer),
+        .nextDescriptorAddress = @intFromPtr(&txDescriptor),
+    };
+
+    ETH.maccr.te = 1;
+
+    ETH.dmatdlar.* = @intFromPtr(&txDescriptor);
+    ETH.dmachtdr.* = @intFromPtr(&txDescriptor);
+
+    ETH.dmaomr.ftf = 1;
     ETH.dmaomr.st = 1;
-    ETH.dmaomr.st = 1;
+    ETH.dmatpdr.* = 1;
 
     std.log.info("sending frame", .{});
-    while (ETH.dmasr.ts == 0) {}
-    ETH.dmasr.ts = 1;
+    while (ETH.dmasr.ts == 0) {
+        const status = ETH.dmasr;
+
+        std.log.debug("waiting for frame to be sent: {}", .{std.json.fmt(status, .{})});
+        std.log.debug("frame status: {}", .{std.json.fmt(txDescriptor.status.status, .{})});
+        for (0..10_000_000) |_| {
+            asm volatile ("nop");
+        }
+    }
 
     std.log.info("sent frame", .{});
 }
 
 fn setupEth() void {
-    const ethPins = .{
-        .{ GPIOA, 1 },
-        .{ GPIOA, 2 },
-        .{ GPIOA, 3 },
-        .{ GPIOA, 7 },
-        .{ GPIOB, 0 },
-        .{ GPIOB, 1 },
-        .{ GPIOB, 5 },
-        .{ GPIOB, 8 },
-        .{ GPIOB, 10 },
-        .{ GPIOB, 11 },
-        .{ GPIOB, 12 },
-        .{ GPIOB, 13 },
-        .{ GPIOC, 1 },
-        .{ GPIOC, 2 },
-        .{ GPIOC, 3 },
-        .{ GPIOC, 4 },
-        .{ GPIOC, 5 },
-        .{ GPIOE, 2 },
-        .{ GPIOG, 8 },
-        .{ GPIOG, 11 },
-        .{ GPIOG, 13 },
-        .{ GPIOG, 14 },
-        .{ GPIOH, 2 },
-        .{ GPIOH, 3 },
-        .{ GPIOH, 6 },
-        .{ GPIOH, 7 },
-        .{ GPIOI, 10 },
-    };
+    SYSCFG.pmc.miiRmiiSel = .RMII;
+
+    RCC.ahb1enr.ethMacEn = true;
+    RCC.ahb1enr.ethMacTxEn = true;
+    RCC.ahb1enr.ethMacRxEn = true;
+
+    const ethPins = .{ .{ GPIOA, 1 }, .{ GPIOA, 2 }, .{ GPIOA, 3 }, .{ GPIOA, 7 }, .{ GPIOB, 0 }, .{ GPIOB, 1 }, .{ GPIOB, 5 }, .{ GPIOB, 8 }, .{ GPIOB, 10 }, .{ GPIOB, 11 }, .{ GPIOB, 12 }, .{ GPIOB, 13 }, .{ GPIOC, 1 }, .{ GPIOC, 2 }, .{ GPIOC, 3 }, .{ GPIOC, 4 }, .{ GPIOC, 5 }, .{ GPIOE, 2 }, .{ GPIOG, 8 }, .{ GPIOG, 11 }, .{ GPIOG, 13 }, .{ GPIOG, 14 }, .{ GPIOH, 2 }, .{ GPIOH, 3 }, .{ GPIOH, 6 }, .{ GPIOH, 7 }, .{ GPIOI, 10 } };
     inline for (ethPins) |p| {
         p[0].setAlternateFunction(p[1], .AF11);
         p[0].setOutputSpeed(p[1], .High);
         p[0].setMode(p[1], .AlternateFunction);
     }
 
-    RCC.ahb1enr.ethMacEn = true;
-    RCC.ahb1enr.ethMacTxEn = true;
-    RCC.ahb1enr.ethMacRxEn = true;
+    // reset MAC
+    RCC.ahb1rstr.ethMacRst = 1;
+    for (0..100_000) |_| {
+        asm volatile ("nop");
+    }
+    RCC.ahb1rstr.ethMacRst = 0;
 
-    // configure ETH MAC
+    // configure PHY
+    {
+        // check link status
+        const status = ETH.readPhyStatus(1);
+        std.log.info("link status: {}", .{std.json.fmt(status, .{ .whitespace = .indent_2 })});
+
+        // enable auto negotiation, full duplex, 100M
+        var control = ETH.readPhyControl(1);
+        control.ane = 1;
+        control.fdm = 1;
+        control.ss = 1;
+        ETH.writePhyControl(1, control);
+
+        // wait for auto negotiation to complete
+        while (ETH.readPhyStatus(1).anc == 0) {}
+
+        std.log.info("auto negotiation completed: {}", .{std.json.fmt(ETH.readPhyStatus(1), .{ .whitespace = .indent_2 })});
+
+        // wait for link to be up
+        while (ETH.readPhyStatus(1).ls == .down) {}
+    }
+
+    // configure MAC
     ETH.maccr.fes = .@"100M";
     ETH.maccr.dm = 1;
-    ETH.maccr.re = 1;
-    ETH.maccr.te = 1;
+
+    ETH.macfcr.tfce = 0;
 
     ETH.maca0hr.maca0h = 0x6969;
     ETH.maca0lr.* = 0x69696969;
 
-    // set up the DMA
-    var txBuffer: [64]u8 align(4) = undefined;
-    var desc: ETH_DmaDescriptor = .{
-        .status = @as(u32, 1) << 31,
-        .buffer1Address = &txBuffer,
-        .controlBufferSize = 64,
-    };
-    ETH.dmatdlar.* = @intFromPtr(&desc);
+    // configure DMA
+    // ...
 
-    // enable transmitter and DMA
-    ETH.dmaomr.st = 1;
-    ETH.dmaomr.sr = 1;
 }
