@@ -31,7 +31,7 @@ SECTIONS {
         . += 4 * 112;
 
         /* And here comes the rest of the code, ie. all symbols starting with .text */
-        *(.text)
+        *(.text*)
         *(.rodata*)
 
         . = ALIGN(4);

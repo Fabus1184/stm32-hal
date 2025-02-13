@@ -3,6 +3,7 @@ const std = @import("std");
 const gpio = @import("hal/gpio.zig");
 
 const core = @import("core/cortex-m4.zig");
+usingnamespace core;
 
 const rcc = @import("hal/STM32F407VE/rcc.zig");
 const usart = @import("hal/STM32F407VE/usart.zig");
@@ -261,19 +262,19 @@ export fn main() noreturn {
             .chsel = 4,
         }));
 
-        std.log.info("setting up DMA with peripheral address {x}, memory address {x}", .{ @intFromPtr(USART3.dr), @intFromPtr(&dmaBuffer) });
+        std.log.info("setting up DMA with peripheral address {x}, memory address {x}", .{ @intFromPtr(USART3.dr.ptr), @intFromPtr(&dmaBuffer) });
         DMA1.s3m0ar.* = @intFromPtr(&dmaBuffer);
-        DMA1.s3par.* = @intFromPtr(USART3.dr);
+        DMA1.s3par.* = @intFromPtr(USART3.dr.ptr);
         std.log.info("set peripheral address {x}, memory address {x}", .{ DMA1.s3par.*, DMA1.s3m0ar.* });
 
         std.log.info("s3ndtr is at {x}", .{@intFromPtr(DMA1.s3ndtr)});
         std.log.info("setting number of data to transfer, prev: {?}", .{DMA1.s3ndtr});
-        // DMA1.s3ndtr.ndt = 1;
+        //DMA1.s3ndtr.ndt = 1;
         @as(*volatile u32, @ptrCast(DMA1.s3ndtr)).* = 14;
         std.log.info("set number of data to transfer, now: {?}", .{DMA1.s3ndtr});
 
-        USART3.cr3.dmat = 1;
-        USART3.sr.tc = 0;
+        USART3.cr3.modify(.{ .dmat = 1 });
+        USART3.sr.modify(.{ .tc = 0 });
 
         std.log.info("starting DMA transfer", .{});
 

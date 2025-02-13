@@ -150,7 +150,7 @@ export fn exceptionHandler() callconv(.Naked) noreturn {
         \\pop {r4-r7}
         // Return from the interrupt
         \\bx lr
-        ::: "r0", "r1", "r2", "r3", "r12", "lr", "pc", "memory");
+        ::: "r0", "r1", "r2", "r3", "r12", "lr", "memory");
 }
 
 const Exception = enum(u6) {
