@@ -5,50 +5,7 @@ const gpio = @import("hal/gpio.zig");
 const core = @import("core/cortex-m4.zig");
 usingnamespace core;
 
-const rcc = @import("hal/STM32F407VE/rcc.zig");
-const usart = @import("hal/STM32F407VE/usart.zig");
-const rng = @import("hal/STM32F407VE/rng.zig");
-const ethernet = @import("hal/STM32F407VE/ethernet.zig");
-const flash = @import("hal/STM32F407VE/flash.zig");
-const syscfg = @import("hal/STM32F407VE/syscfg.zig");
-const dma = @import("hal/STM32F407VE/dma.zig");
-
-usingnamespace @import("aeabi.zig");
-
-const RCC = rcc.Rcc(
-    @ptrFromInt(0x4002_3800),
-    16_000_000,
-    32_000,
-    25_000_000,
-    32_768,
-){};
-
-const GPIOA = gpio.Gpio(@ptrFromInt(0x4002_0000)){};
-const GPIOB = gpio.Gpio(@ptrFromInt(0x4002_0400)){};
-const GPIOC = gpio.Gpio(@ptrFromInt(0x4002_0800)){};
-const GPIOD = gpio.Gpio(@ptrFromInt(0x4002_0C00)){};
-const GPIOE = gpio.Gpio(@ptrFromInt(0x4002_1000)){};
-const GPIOF = gpio.Gpio(@ptrFromInt(0x4002_1400)){};
-const GPIOG = gpio.Gpio(@ptrFromInt(0x4002_1800)){};
-const GPIOH = gpio.Gpio(@ptrFromInt(0x4002_1C00)){};
-const GPIOI = gpio.Gpio(@ptrFromInt(0x4002_2000)){};
-const GPIOJ = gpio.Gpio(@ptrFromInt(0x4002_2400)){};
-const GPIOK = gpio.Gpio(@ptrFromInt(0x4002_2800)){};
-
-const USART1 = usart.Usart(@ptrFromInt(0x4001_1000)){};
-const USART2 = usart.Usart(@ptrFromInt(0x4001_4400)){};
-const USART3 = usart.Usart(@ptrFromInt(0x4000_4800)){};
-
-const ETH = ethernet.Ethernet(@ptrFromInt(0x4002_8000)){};
-
-var RNG = rng.Rng(@ptrFromInt(0x5006_0800)){};
-
-const FLASH = flash.Flash(@ptrFromInt(0x4002_3C00)){};
-
-const SYSCFG = syscfg.Syscfg(@ptrFromInt(0x4001_3800)){};
-
-const DMA1 = dma.Dma(@ptrFromInt(0x4002_6000)){};
-const DMA2 = dma.Dma(@ptrFromInt(0x4002_6400)){};
+const hal = @import("hal/STM32F407VE/hal.zig");
 
 pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
     var buffer: [255]u8 = undefined;
@@ -77,7 +34,7 @@ pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), c
         return;
     };
 
-    USART3.send(result2);
+    hal.USART3.send(result2);
 }
 
 pub const std_options: std.Options = .{
@@ -122,13 +79,13 @@ const LED3 = 15;
 fn systickInterrupt() void { // reset the systick interrupt flag
     _ = core.SYSTICK.csr.*;
 
-    GPIOE.setLevel(LED3, ~GPIOE.getLevel(LED3));
+    hal.GPIOE.setLevel(LED3, ~hal.GPIOE.getLevel(LED3));
 
     const a = struct {
         var on: u1 = 1;
     };
 
-    GPIOA.setLevel(5, a.on);
+    hal.GPIOA.setLevel(5, a.on);
     a.on ^= 1;
 }
 
@@ -142,43 +99,43 @@ const ETH_DmaDescriptor = packed struct {
 export fn main() noreturn {
     initializeMemory();
 
-    RCC.ahb1enr.gpioAEn = true;
-    RCC.ahb1enr.gpioBEn = true;
-    RCC.ahb1enr.gpioCEn = true;
-    RCC.ahb1enr.gpioDEn = true;
-    RCC.ahb1enr.gpioEEn = true;
-    RCC.ahb1enr.gpioFEn = true;
-    RCC.ahb1enr.gpioGEn = true;
-    RCC.ahb1enr.gpioHEn = true;
-    RCC.ahb1enr.gpioIEn = true;
+    hal.RCC.ahb1enr.gpioAEn = true;
+    hal.RCC.ahb1enr.gpioBEn = true;
+    hal.RCC.ahb1enr.gpioCEn = true;
+    hal.RCC.ahb1enr.gpioDEn = true;
+    hal.RCC.ahb1enr.gpioEEn = true;
+    hal.RCC.ahb1enr.gpioFEn = true;
+    hal.RCC.ahb1enr.gpioGEn = true;
+    hal.RCC.ahb1enr.gpioHEn = true;
+    hal.RCC.ahb1enr.gpioIEn = true;
 
-    RCC.apb1enr.usart3En = true;
+    hal.RCC.apb1enr.usart3En = true;
 
-    RCC.ahb1enr.dma1En = true;
-    RCC.ahb1enr.dma2En = true;
+    hal.RCC.ahb1enr.dma1En = true;
+    hal.RCC.ahb1enr.dma2En = true;
 
     // configure GPIOA B10 as USART3 TX
     const UART_TX = 8;
-    GPIOD.setAlternateFunction(UART_TX, .AF7);
-    GPIOD.setOutputType(UART_TX, .PushPull);
-    GPIOD.setPullMode(UART_TX, .PullUp);
-    GPIOD.setOutputSpeed(UART_TX, .High);
-    GPIOD.setMode(UART_TX, .AlternateFunction);
+    hal.GPIOD.setAlternateFunction(UART_TX, .AF7);
+    hal.GPIOD.setOutputType(UART_TX, .PushPull);
+    hal.GPIOD.setPullMode(UART_TX, .PullUp);
+    hal.GPIOD.setOutputSpeed(UART_TX, .High);
+    hal.GPIOD.setMode(UART_TX, .AlternateFunction);
 
     inline for (.{ LED1, LED2, LED3 }) |l| {
-        GPIOE.setupOutputPin(l, .PushPull, .Medium);
+        hal.GPIOE.setupOutputPin(l, .PushPull, .Medium);
     }
 
-    GPIOA.setupOutputPin(5, .PushPull, .Medium);
+    hal.GPIOA.setupOutputPin(5, .PushPull, .Medium);
 
     const BAUDRATE = 115_200;
 
-    USART3.init(RCC.apb1Clock(), BAUDRATE);
+    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE);
 
     // configure prescalers
-    RCC.cfgr.hpre = .notDivided;
-    RCC.cfgr.ppre1 = .notDivided;
-    RCC.cfgr.ppre2 = .notDivided;
+    hal.RCC.cfgr.hpre = .notDivided;
+    hal.RCC.cfgr.ppre1 = .notDivided;
+    hal.RCC.cfgr.ppre2 = .notDivided;
 
     // configure systick to tick every 1s
     core.SYSTICK.rvr.value = 10_000_000;
@@ -189,47 +146,47 @@ export fn main() noreturn {
     core.SoftExceptionHandler.put(.SysTick, systickInterrupt);
     core.SYSTICK.csr.enable = true;
 
-    std.log.debug("clocks: {}", .{RCC.clocks()});
+    std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 
-    RCC.cr.hseOn = true;
+    hal.RCC.cr.hseOn = true;
     std.log.debug("waiting for HSE to stabilize", .{});
-    while (!RCC.cr.hseRdy) {}
+    while (!hal.RCC.cr.hseRdy) {}
 
     std.log.debug("HSE stabilized, switching to HSE", .{});
-    RCC.cfgr.sw = .hse;
-    while (RCC.cfgr.sws != .hse) {}
+    hal.RCC.cfgr.sw = .hse;
+    while (hal.RCC.cfgr.sws != .hse) {}
 
-    USART3.deinit();
-    USART3.init(RCC.apb1Clock(), BAUDRATE);
+    hal.USART3.deinit();
+    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE);
 
     std.log.debug("switched to HSE", .{});
 
-    std.log.debug("clocks: {}", .{RCC.clocks()});
+    std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 
     // configure PLL
-    RCC.pllcgfr.pllSrc = .hse;
-    RCC.pllcgfr.pllM = 25;
-    RCC.pllcgfr.pllN = 336;
-    RCC.pllcgfr.pllP = .div2;
-    RCC.pllcgfr.pllQ = 7;
+    hal.RCC.pllcgfr.pllSrc = .hse;
+    hal.RCC.pllcgfr.pllM = 25;
+    hal.RCC.pllcgfr.pllN = 336;
+    hal.RCC.pllcgfr.pllP = .div2;
+    hal.RCC.pllcgfr.pllQ = 7;
 
-    RCC.cr.pllOn = true;
+    hal.RCC.cr.pllOn = true;
     std.log.debug("waiting for PLL to stabilize", .{});
-    while (!RCC.cr.pllRdy) {}
+    while (!hal.RCC.cr.pllRdy) {}
 
     std.log.debug("PLL stabilized, switching to PLL", .{});
-    FLASH.acr.latency = 5;
-    RCC.cfgr.sw = .pll;
-    while (RCC.cfgr.sws != .pll) {}
+    hal.FLASH.acr.latency = 5;
+    hal.RCC.cfgr.sw = .pll;
+    while (hal.RCC.cfgr.sws != .pll) {}
 
-    USART3.deinit();
-    USART3.init(RCC.apb1Clock(), BAUDRATE);
+    hal.USART3.deinit();
+    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE);
 
     std.log.debug("switched to PLL", .{});
-    std.log.debug("clocks: {}", .{RCC.clocks()});
+    std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 
-    RCC.ahb2enr.rngEn = true;
-    RNG.init() catch |err| {
+    hal.RCC.ahb2enr.rngEn = true;
+    hal.RNG.init() catch |err| {
         std.log.err("failed to initialize RNG: {}", .{err});
     };
 
@@ -239,8 +196,8 @@ export fn main() noreturn {
     while (true) {
         std.log.info("setting up DMA stream 3", .{});
 
-        @as(*volatile u32, @ptrCast(DMA1.s3cr)).* = @as(*volatile u32, @ptrCast(DMA1.s3cr)).* |
-            @as(u32, @bitCast(dma.scr{
+        @as(*volatile u32, @ptrCast(hal.DMA1.s3cr)).* = @as(*volatile u32, @ptrCast(hal.DMA1.s3cr)).* |
+            @as(u32, @bitCast(hal.dma.scr{
             .en = 0,
             .dmeie = 0,
             .teie = 0,
@@ -262,38 +219,38 @@ export fn main() noreturn {
             .chsel = 4,
         }));
 
-        std.log.info("setting up DMA with peripheral address {x}, memory address {x}", .{ @intFromPtr(USART3.dr.ptr), @intFromPtr(&dmaBuffer) });
-        DMA1.s3m0ar.* = @intFromPtr(&dmaBuffer);
-        DMA1.s3par.* = @intFromPtr(USART3.dr.ptr);
-        std.log.info("set peripheral address {x}, memory address {x}", .{ DMA1.s3par.*, DMA1.s3m0ar.* });
+        std.log.info("setting up DMA with peripheral address {x}, memory address {x}", .{ @intFromPtr(hal.USART3.dr.ptr), @intFromPtr(&dmaBuffer) });
+        hal.DMA1.s3m0ar.* = @intFromPtr(&dmaBuffer);
+        hal.DMA1.s3par.* = @intFromPtr(hal.USART3.dr.ptr);
+        std.log.info("set peripheral address {x}, memory address {x}", .{ hal.DMA1.s3par.*, hal.DMA1.s3m0ar.* });
 
-        std.log.info("s3ndtr is at {x}", .{@intFromPtr(DMA1.s3ndtr)});
-        std.log.info("setting number of data to transfer, prev: {?}", .{DMA1.s3ndtr});
+        std.log.info("s3ndtr is at {x}", .{@intFromPtr(hal.DMA1.s3ndtr)});
+        std.log.info("setting number of data to transfer, prev: {?}", .{hal.DMA1.s3ndtr});
         //DMA1.s3ndtr.ndt = 1;
-        @as(*volatile u32, @ptrCast(DMA1.s3ndtr)).* = 14;
-        std.log.info("set number of data to transfer, now: {?}", .{DMA1.s3ndtr});
+        @as(*volatile u32, @ptrCast(hal.DMA1.s3ndtr)).* = 14;
+        std.log.info("set number of data to transfer, now: {?}", .{hal.DMA1.s3ndtr});
 
-        USART3.cr3.modify(.{ .dmat = 1 });
-        USART3.sr.modify(.{ .tc = 0 });
+        hal.USART3.cr3.modify(.{ .dmat = 1 });
+        hal.USART3.sr.modify(.{ .tc = 0 });
 
         std.log.info("starting DMA transfer", .{});
 
-        @as(*volatile u32, @ptrCast(DMA1.s3cr)).* = @as(*volatile u32, @ptrCast(DMA1.s3cr)).* | @as(u32, @bitCast(dma.scr{ .en = 1 }));
+        @as(*volatile u32, @ptrCast(hal.DMA1.s3cr)).* = @as(*volatile u32, @ptrCast(hal.DMA1.s3cr)).* | @as(u32, @bitCast(hal.dma.scr{ .en = 1 }));
 
         for (0..10_000_000) |_| {
             asm volatile ("nop");
         }
 
-        std.log.info("DMA transfer started, en = {d}", .{DMA1.s3cr.en});
+        std.log.info("DMA transfer started, en = {d}", .{hal.DMA1.s3cr.en});
 
         std.log.info("waiting for DMA transfer to complete", .{});
-        while (@as(*volatile u32, @ptrCast(DMA1.lisr)).* & (1 << 27) == 0) {
-            std.log.debug("DMA transfer in progress, ndtr: {?}, lisr: {x}", .{ DMA1.s3ndtr, @as(*volatile u32, @ptrCast(DMA1.lisr)).* });
+        while (@as(*volatile u32, @ptrCast(hal.DMA1.lisr)).* & (1 << 27) == 0) {
+            std.log.debug("DMA transfer in progress, ndtr: {?}, lisr: {x}", .{ hal.DMA1.s3ndtr, @as(*volatile u32, @ptrCast(hal.DMA1.lisr)).* });
         }
         std.log.info("DMA transfer completed", .{});
 
         // clear transfer complete flag
-        @as(*volatile u32, @ptrCast(DMA1.lifcr)).* = @as(*volatile u32, @ptrCast(DMA1.lifcr)).* | (1 << 27);
+        @as(*volatile u32, @ptrCast(hal.DMA1.lifcr)).* = @as(*volatile u32, @ptrCast(hal.DMA1.lifcr)).* | (1 << 27);
 
         for (0..30_000_000) |_| {
             asm volatile ("nop");
@@ -419,18 +376,18 @@ fn sendEthFrame() void {
         .nextDescriptorAddress = @intFromPtr(&txDescriptor),
     };
 
-    ETH.maccr.te = 1;
+    hal.ETH.maccr.te = 1;
 
-    ETH.dmatdlar.* = @intFromPtr(&txDescriptor);
-    ETH.dmachtdr.* = @intFromPtr(&txDescriptor);
+    hal.ETH.dmatdlar.* = @intFromPtr(&txDescriptor);
+    hal.ETH.dmachtdr.* = @intFromPtr(&txDescriptor);
 
-    ETH.dmaomr.ftf = 1;
-    ETH.dmaomr.st = 1;
-    ETH.dmatpdr.* = 1;
+    hal.ETH.dmaomr.ftf = 1;
+    hal.ETH.dmaomr.st = 1;
+    hal.ETH.dmatpdr.* = 1;
 
     std.log.info("sending frame", .{});
-    while (ETH.dmasr.ts == 0) {
-        const status = ETH.dmasr;
+    while (hal.ETH.dmasr.ts == 0) {
+        const status = hal.ETH.dmasr;
 
         std.log.debug("waiting for frame to be sent: {}", .{std.json.fmt(status, .{})});
         std.log.debug("frame status: {}", .{std.json.fmt(txDescriptor.status.status, .{})});
@@ -443,13 +400,41 @@ fn sendEthFrame() void {
 }
 
 fn setupEth() void {
-    SYSCFG.pmc.miiRmiiSel = .RMII;
+    hal.SYSCFG.pmc.miiRmiiSel = .RMII;
 
-    RCC.ahb1enr.ethMacEn = true;
-    RCC.ahb1enr.ethMacTxEn = true;
-    RCC.ahb1enr.ethMacRxEn = true;
+    hal.RCC.ahb1enr.ethMacEn = true;
+    hal.RCC.ahb1enr.ethMacTxEn = true;
+    hal.RCC.ahb1enr.ethMacRxEn = true;
 
-    const ethPins = .{ .{ GPIOA, 1 }, .{ GPIOA, 2 }, .{ GPIOA, 3 }, .{ GPIOA, 7 }, .{ GPIOB, 0 }, .{ GPIOB, 1 }, .{ GPIOB, 5 }, .{ GPIOB, 8 }, .{ GPIOB, 10 }, .{ GPIOB, 11 }, .{ GPIOB, 12 }, .{ GPIOB, 13 }, .{ GPIOC, 1 }, .{ GPIOC, 2 }, .{ GPIOC, 3 }, .{ GPIOC, 4 }, .{ GPIOC, 5 }, .{ GPIOE, 2 }, .{ GPIOG, 8 }, .{ GPIOG, 11 }, .{ GPIOG, 13 }, .{ GPIOG, 14 }, .{ GPIOH, 2 }, .{ GPIOH, 3 }, .{ GPIOH, 6 }, .{ GPIOH, 7 }, .{ GPIOI, 10 } };
+    const ethPins = .{
+        .{ hal.GPIOA, 1 },
+        .{ hal.GPIOA, 2 },
+        .{ hal.GPIOA, 3 },
+        .{ hal.GPIOA, 7 },
+        .{ hal.GPIOB, 0 },
+        .{ hal.GPIOB, 1 },
+        .{ hal.GPIOB, 5 },
+        .{ hal.GPIOB, 8 },
+        .{ hal.GPIOB, 10 },
+        .{ hal.GPIOB, 11 },
+        .{ hal.GPIOB, 12 },
+        .{ hal.GPIOB, 13 },
+        .{ hal.GPIOC, 1 },
+        .{ hal.GPIOC, 2 },
+        .{ hal.GPIOC, 3 },
+        .{ hal.GPIOC, 4 },
+        .{ hal.GPIOC, 5 },
+        .{ hal.GPIOE, 2 },
+        .{ hal.GPIOG, 8 },
+        .{ hal.GPIOG, 11 },
+        .{ hal.GPIOG, 13 },
+        .{ hal.GPIOG, 14 },
+        .{ hal.GPIOH, 2 },
+        .{ hal.GPIOH, 3 },
+        .{ hal.GPIOH, 6 },
+        .{ hal.GPIOH, 7 },
+        .{ hal.GPIOI, 10 },
+    };
     inline for (ethPins) |p| {
         p[0].setAlternateFunction(p[1], .AF11);
         p[0].setOutputSpeed(p[1], .High);
@@ -457,42 +442,42 @@ fn setupEth() void {
     }
 
     // reset MAC
-    RCC.ahb1rstr.ethMacRst = 1;
+    hal.RCC.ahb1rstr.ethMacRst = 1;
     for (0..100_000) |_| {
         asm volatile ("nop");
     }
-    RCC.ahb1rstr.ethMacRst = 0;
+    hal.RCC.ahb1rstr.ethMacRst = 0;
 
     // configure PHY
     {
         // check link status
-        const status = ETH.readPhyStatus(1);
+        const status = hal.ETH.readPhyStatus(1);
         std.log.info("link status: {}", .{std.json.fmt(status, .{ .whitespace = .indent_2 })});
 
         // enable auto negotiation, full duplex, 100M
-        var control = ETH.readPhyControl(1);
+        var control = hal.ETH.readPhyControl(1);
         control.ane = 1;
         control.fdm = 1;
         control.ss = 1;
-        ETH.writePhyControl(1, control);
+        hal.ETH.writePhyControl(1, control);
 
         // wait for auto negotiation to complete
-        while (ETH.readPhyStatus(1).anc == 0) {}
+        while (hal.ETH.readPhyStatus(1).anc == 0) {}
 
-        std.log.info("auto negotiation completed: {}", .{std.json.fmt(ETH.readPhyStatus(1), .{ .whitespace = .indent_2 })});
+        std.log.info("auto negotiation completed: {}", .{std.json.fmt(hal.ETH.readPhyStatus(1), .{ .whitespace = .indent_2 })});
 
         // wait for link to be up
-        while (ETH.readPhyStatus(1).ls == .down) {}
+        while (hal.ETH.readPhyStatus(1).ls == .down) {}
     }
 
     // configure MAC
-    ETH.maccr.fes = .@"100M";
-    ETH.maccr.dm = 1;
+    hal.ETH.maccr.fes = .@"100M";
+    hal.ETH.maccr.dm = 1;
 
-    ETH.macfcr.tfce = 0;
+    hal.ETH.macfcr.tfce = 0;
 
-    ETH.maca0hr.maca0h = 0x6969;
-    ETH.maca0lr.* = 0x69696969;
+    hal.ETH.maca0hr.maca0h = 0x6969;
+    hal.ETH.maca0lr.* = 0x69696969;
 
     // configure DMA
     // ...

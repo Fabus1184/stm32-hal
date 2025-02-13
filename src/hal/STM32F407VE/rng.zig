@@ -24,18 +24,20 @@ pub fn Rng(comptime baseAddress: [*]align(4) volatile u8) type {
         } = @ptrCast(&baseAddress[0x4]),
         dr: *volatile u32 = @ptrCast(&baseAddress[0x8]),
 
-        last: u32 = undefined,
+        last: struct {
+            var last: u32 = undefined;
+        } = .{},
 
-        pub fn init(self: *@This()) !void {
+        pub fn init(self: @This()) !void {
             self.cr.ie = true;
             self.cr.rngen = true;
-            self.last = try self._readU32();
+            @TypeOf(self.last).last = try self._readU32();
         }
 
         pub fn readU32(self: @This()) !u32 {
             const value = try self._readU32();
 
-            if (value == self.last) {
+            if (value == @TypeOf(self.last).last) {
                 return error.Duplicate;
             } else {
                 return value;
