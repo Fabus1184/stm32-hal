@@ -31,7 +31,7 @@ jobs:
           export ZIG_VERSION=0.13.0
           sudo apt-get update
           sudo apt-get install -y xz-utils wget
-          wget https://ziglang.org/downloads/$ZIG_VERSION/zig-linux-x86_64-$ZIG_VERSION.tar.xz
+          wget https://ziglang.org/download/$ZIG_VERSION/zig-linux-x86_64-$ZIG_VERSION.tar.xz
           tar -xf zig-linux-x86_64-$ZIG_VERSION.tar.xz
           echo PATH=$PATH:$(pwd)/zig-linux-x86_64-$ZIG_VERSION >> $GITHUB_ENV
 
