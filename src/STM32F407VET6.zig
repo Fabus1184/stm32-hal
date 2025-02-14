@@ -196,8 +196,7 @@ export fn main() noreturn {
     while (true) {
         std.log.info("setting up DMA stream 3", .{});
 
-        @as(*volatile u32, @ptrCast(hal.DMA1.s3cr)).* = @as(*volatile u32, @ptrCast(hal.DMA1.s3cr)).* |
-            @as(u32, @bitCast(hal.dma.scr{
+        hal.DMA1.s3cr.modify(.{
             .en = 0,
             .dmeie = 0,
             .teie = 0,
@@ -217,42 +216,39 @@ export fn main() noreturn {
             .pburst = .single,
             .mburst = .single,
             .chsel = 4,
-        }));
+        });
 
         std.log.info("setting up DMA with peripheral address {x}, memory address {x}", .{ @intFromPtr(hal.USART3.dr.ptr), @intFromPtr(&dmaBuffer) });
         hal.DMA1.s3m0ar.* = @intFromPtr(&dmaBuffer);
         hal.DMA1.s3par.* = @intFromPtr(hal.USART3.dr.ptr);
         std.log.info("set peripheral address {x}, memory address {x}", .{ hal.DMA1.s3par.*, hal.DMA1.s3m0ar.* });
 
-        std.log.info("s3ndtr is at {x}", .{@intFromPtr(hal.DMA1.s3ndtr)});
-        std.log.info("setting number of data to transfer, prev: {?}", .{hal.DMA1.s3ndtr});
-        //DMA1.s3ndtr.ndt = 1;
-        @as(*volatile u32, @ptrCast(hal.DMA1.s3ndtr)).* = 14;
-        std.log.info("set number of data to transfer, now: {?}", .{hal.DMA1.s3ndtr});
+        std.log.info("s3ndtr is at {?}", .{hal.DMA1.s3ndtr.load()});
+        std.log.info("setting number of data to transfer, prev: {?}", .{hal.DMA1.s3ndtr.load()});
+        hal.DMA1.s3ndtr.modify(.{ .ndt = 14 });
+        std.log.info("set number of data to transfer, now: {?}", .{hal.DMA1.s3ndtr.load()});
 
         hal.USART3.cr3.modify(.{ .dmat = 1 });
         hal.USART3.sr.modify(.{ .tc = 0 });
 
         std.log.info("starting DMA transfer", .{});
 
-        @as(*volatile u32, @ptrCast(hal.DMA1.s3cr)).* = @as(*volatile u32, @ptrCast(hal.DMA1.s3cr)).* | @as(u32, @bitCast(hal.dma.scr{ .en = 1 }));
+        hal.DMA1.s3cr.modify(.{ .en = 1 });
 
-        for (0..10_000_000) |_| {
+        for (0..100_000) |_| {
             asm volatile ("nop");
         }
 
-        std.log.info("DMA transfer started, en = {d}", .{hal.DMA1.s3cr.en});
-
         std.log.info("waiting for DMA transfer to complete", .{});
-        while (@as(*volatile u32, @ptrCast(hal.DMA1.lisr)).* & (1 << 27) == 0) {
-            std.log.debug("DMA transfer in progress, ndtr: {?}, lisr: {x}", .{ hal.DMA1.s3ndtr, @as(*volatile u32, @ptrCast(hal.DMA1.lisr)).* });
+        while (hal.DMA1.lisr.load().tcif3 == 0) {
+            std.log.debug("DMA transfer in progress, ndtr: {?}, lisr: {?}", .{ hal.DMA1.s3ndtr.load(), hal.DMA1.lisr.load() });
         }
         std.log.info("DMA transfer completed", .{});
 
         // clear transfer complete flag
-        @as(*volatile u32, @ptrCast(hal.DMA1.lifcr)).* = @as(*volatile u32, @ptrCast(hal.DMA1.lifcr)).* | (1 << 27);
+        hal.DMA1.lifcr.modify(.{ .tcif3 = 1 });
 
-        for (0..30_000_000) |_| {
+        for (0..100_000) |_| {
             asm volatile ("nop");
         }
     }

@@ -1,3 +1,5 @@
+const Register = @import("../../register.zig").Register;
+
 pub const isr = packed struct(u32) {
     /// Stream 0 FIFO error interrupt flag
     feif0: u1,
@@ -158,17 +160,17 @@ pub const fcr = packed struct(u32) {
 pub fn Dma(baseAddress: [*]align(4) volatile u8) type {
     return struct {
         /// Low interrupt status register
-        lisr: *volatile isr = @ptrCast(&baseAddress[0x00]),
+        lisr: Register(isr) = .{ .ptr = @ptrCast(&baseAddress[0x00]) },
         /// High interrupt status register
-        hisr: *volatile isr = @ptrCast(&baseAddress[0x04]),
+        hisr: Register(isr) = .{ .ptr = @ptrCast(&baseAddress[0x04]) },
         /// Low interrupt flag clear register
-        lifcr: *volatile isr = @ptrCast(&baseAddress[0x08]),
+        lifcr: Register(isr) = .{ .ptr = @ptrCast(&baseAddress[0x08]) },
         /// High interrupt flag clear register
-        hifcr: *volatile isr = @ptrCast(&baseAddress[0x0C]),
+        hifcr: Register(isr) = .{ .ptr = @ptrCast(&baseAddress[0x0C]) },
         /// Stream 0 configuration register
-        s0cr: *volatile scr = @ptrCast(&baseAddress[0x10]),
+        s0cr: Register(scr) = .{ .ptr = @ptrCast(&baseAddress[0x10]) },
         /// Stream 0 number of data register
-        s0ndtr: *volatile ndtr = @ptrCast(&baseAddress[0x14]),
+        s0ndtr: Register(ndtr) = .{ .ptr = @ptrCast(&baseAddress[0x14]) },
         /// Stream 0 peripheral address register
         s0par: *volatile u32 = @ptrCast(&baseAddress[0x18]),
         /// Stream 0 memory 0 address register
@@ -176,11 +178,11 @@ pub fn Dma(baseAddress: [*]align(4) volatile u8) type {
         /// Stream 0 memory 1 address register
         s0m1ar: *volatile u32 = @ptrCast(&baseAddress[0x20]),
         /// Stream 0 FIFO control register
-        s0fcr: *volatile fcr = @ptrCast(&baseAddress[0x24]),
+        s0fcr: Register(fcr) = .{ .ptr = @ptrCast(&baseAddress[0x24]) },
         /// Stream 1 configuration register
-        s1cr: *volatile scr = @ptrCast(&baseAddress[0x28]),
+        s1cr: Register(scr) = .{ .ptr = @ptrCast(&baseAddress[0x28]) },
         /// Stream 1 number of data register
-        s1ndtr: *volatile ndtr = @ptrCast(&baseAddress[0x2C]),
+        s1ndtr: Register(ndtr) = .{ .ptr = @ptrCast(&baseAddress[0x2C]) },
         /// Stream 1 peripheral address register
         s1par: *volatile u32 = @ptrCast(&baseAddress[0x30]),
         /// Stream 1 memory 0 address register
@@ -188,11 +190,11 @@ pub fn Dma(baseAddress: [*]align(4) volatile u8) type {
         /// Stream 1 memory 1 address register
         s1m1ar: *volatile u32 = @ptrCast(&baseAddress[0x38]),
         /// Stream 1 FIFO control register
-        s1fcr: *volatile fcr = @ptrCast(&baseAddress[0x3C]),
+        s1fcr: Register(fcr) = .{ .ptr = @ptrCast(&baseAddress[0x3C]) },
         /// Stream 2 configuration register
-        s2cr: *volatile scr = @ptrCast(&baseAddress[0x40]),
+        s2cr: Register(scr) = .{ .ptr = @ptrCast(&baseAddress[0x40]) },
         /// Stream 2 number of data register
-        s2ndtr: *volatile ndtr = @ptrCast(&baseAddress[0x44]),
+        s2ndtr: Register(ndtr) = .{ .ptr = @ptrCast(&baseAddress[0x44]) },
         /// Stream 2 peripheral address register
         s2par: *volatile u32 = @ptrCast(&baseAddress[0x48]),
         /// Stream 2 memory 0 address register
@@ -200,11 +202,11 @@ pub fn Dma(baseAddress: [*]align(4) volatile u8) type {
         /// Stream 2 memory 1 address register
         s2m1ar: *volatile u32 = @ptrCast(&baseAddress[0x50]),
         /// Stream 2 FIFO control register
-        s2fcr: *volatile fcr = @ptrCast(&baseAddress[0x54]),
+        s2fcr: Register(fcr) = .{ .ptr = @ptrCast(&baseAddress[0x54]) },
         /// Stream 3 configuration register
-        s3cr: *volatile scr = @ptrCast(&baseAddress[0x58]),
+        s3cr: Register(scr) = .{ .ptr = @ptrCast(&baseAddress[0x58]) },
         /// Stream 3 number of data register
-        s3ndtr: *volatile ndtr = @ptrCast(&baseAddress[0x5C]),
+        s3ndtr: Register(ndtr) = .{ .ptr = @ptrCast(&baseAddress[0x5C]) },
         /// Stream 3 peripheral address register
         s3par: *volatile u32 = @ptrCast(&baseAddress[0x60]),
         /// Stream 3 memory 0 address register
@@ -212,9 +214,9 @@ pub fn Dma(baseAddress: [*]align(4) volatile u8) type {
         /// Stream 3 memory 1 address register
         s3m1ar: *volatile u32 = @ptrCast(&baseAddress[0x68]),
         /// Stream 3 FIFO control register
-        s3fcr: *volatile fcr = @ptrCast(&baseAddress[0x6C]),
+        s3fcr: Register(fcr) = .{ .ptr = @ptrCast(&baseAddress[0x6C]) },
         /// Stream 4 configuration register
-        s4cr: *volatile scr = @ptrCast(&baseAddress[0x70]),
+        s4cr: Register(scr) = .{ .ptr = @ptrCast(&baseAddress[0x70]) },
         /// Stream 4 number of data register
         s4ndtr: *align(4) volatile ndtr = @ptrCast(&baseAddress[0x74]),
         /// Stream 4 peripheral address register
@@ -224,11 +226,11 @@ pub fn Dma(baseAddress: [*]align(4) volatile u8) type {
         /// Stream 4 memory 1 address register
         s4m1ar: *volatile u32 = @ptrCast(&baseAddress[0x80]),
         /// Stream 4 FIFO control register
-        s4fcr: *volatile fcr = @ptrCast(&baseAddress[0x84]),
+        s4fcr: Register(fcr) = .{ .ptr = @ptrCast(&baseAddress[0x84]) },
         /// Stream 5 configuration register
-        s5cr: *volatile scr = @ptrCast(&baseAddress[0x88]),
+        s5cr: Register(scr) = .{ .ptr = @ptrCast(&baseAddress[0x88]) },
         /// Stream 5 number of data register
-        s5ndtr: *volatile ndtr = @ptrCast(&baseAddress[0x8C]),
+        s5ndtr: Register(ndtr) = .{ .ptr = @ptrCast(&baseAddress[0x8C]) },
         /// Stream 5 peripheral address register
         s5par: *volatile u32 = @ptrCast(&baseAddress[0x90]),
         /// Stream 5 memory 0 address register
@@ -236,11 +238,11 @@ pub fn Dma(baseAddress: [*]align(4) volatile u8) type {
         /// Stream 5 memory 1 address register
         s5m1ar: *volatile u32 = @ptrCast(&baseAddress[0x98]),
         /// Stream 5 FIFO control register
-        s5fcr: *volatile fcr = @ptrCast(&baseAddress[0x9C]),
+        s5fcr: Register(fcr) = .{ .ptr = @ptrCast(&baseAddress[0x9C]) },
         /// Stream 6 configuration register
-        s6cr: *volatile scr = @ptrCast(&baseAddress[0xA0]),
+        s6cr: Register(scr) = .{ .ptr = @ptrCast(&baseAddress[0xA0]) },
         /// Stream 6 number of data register
-        s6ndtr: *volatile ndtr = @ptrCast(&baseAddress[0xA4]),
+        s6ndtr: Register(ndtr) = .{ .ptr = @ptrCast(&baseAddress[0xA4]) },
         /// Stream 6 peripheral address register
         s6par: *volatile u32 = @ptrCast(&baseAddress[0xA8]),
         /// Stream 6 memory 0 address register
@@ -248,11 +250,11 @@ pub fn Dma(baseAddress: [*]align(4) volatile u8) type {
         /// Stream 6 memory 1 address register
         s6m1ar: *volatile u32 = @ptrCast(&baseAddress[0xB0]),
         /// Stream 6 FIFO control register
-        s6fcr: *volatile fcr = @ptrCast(&baseAddress[0xB4]),
+        s6fcr: Register(fcr) = .{ .ptr = @ptrCast(&baseAddress[0xB4]) },
         /// Stream 7 configuration register
-        s7cr: *volatile scr = @ptrCast(&baseAddress[0xB8]),
+        s7cr: Register(scr) = .{ .ptr = @ptrCast(&baseAddress[0xB8]) },
         /// Stream 7 number of data register
-        s7ndtr: *volatile ndtr = @ptrCast(&baseAddress[0xBC]),
+        s7ndtr: Register(ndtr) = .{ .ptr = @ptrCast(&baseAddress[0xBC]) },
         /// Stream 7 peripheral address register
         s7par: *volatile u32 = @ptrCast(&baseAddress[0xC0]),
         /// Stream 7 memory 0 address register
@@ -260,6 +262,6 @@ pub fn Dma(baseAddress: [*]align(4) volatile u8) type {
         /// Stream 7 memory 1 address register
         s7m1ar: *volatile u32 = @ptrCast(&baseAddress[0xC8]),
         /// Stream 7 FIFO control register
-        s7fcr: *volatile fcr = @ptrCast(&baseAddress[0xCC]),
+        s7fcr: Register(fcr) = .{ .ptr = @ptrCast(&baseAddress[0xCC]) },
     };
 }
