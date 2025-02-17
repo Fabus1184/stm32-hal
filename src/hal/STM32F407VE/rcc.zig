@@ -646,5 +646,18 @@ pub fn Rcc(
                 .system = self.systemClock(),
             };
         }
+
+        pub fn configurePll(self: @This(), src: @TypeOf(self.pllcgfr.pllSrc), m: u6, n: u9, p: @TypeOf(self.pllcgfr.pllP), q: u4) void {
+            self.pllcgfr.pllSrc = src;
+            self.pllcgfr.pllM = m;
+            self.pllcgfr.pllN = n;
+            self.pllcgfr.pllP = p;
+            self.pllcgfr.pllQ = q;
+
+            self.cr.pllOn = true;
+
+            std.log.debug("waiting for PLL to stabilize", .{});
+            while (!self.cr.pllRdy) {}
+        }
     };
 }

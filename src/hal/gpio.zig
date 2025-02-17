@@ -29,7 +29,8 @@ pub fn Gpio(comptime baseAddress: [*]volatile u32) type {
         const OutputSpeed = enum(u2) {
             Low = 0b00,
             Medium = 0b01,
-            High = 0b11,
+            High = 0b10,
+            VeryHigh = 0b11,
         };
 
         const PullMode = enum(u2) {

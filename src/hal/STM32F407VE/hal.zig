@@ -1,12 +1,13 @@
 pub const rcc = @import("rcc.zig");
 pub const usart = @import("usart.zig");
 pub const rng = @import("rng.zig");
-pub const ethernet = @import("ethernet.zig");
+pub const ethernet = @import("ethernet/ethernet.zig");
 pub const flash = @import("flash.zig");
 pub const syscfg = @import("syscfg.zig");
 pub const dma = @import("dma.zig");
 
 pub const gpio = @import("../gpio.zig");
+pub const memory = @import("../memory.zig");
 
 pub const RCC = rcc.Rcc(
     @ptrFromInt(0x4002_3800),

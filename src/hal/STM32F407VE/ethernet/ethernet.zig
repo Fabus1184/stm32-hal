@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const phy = @import("phy.zig");
+
 const maccr = packed struct(u32) {
     _0: u2,
     /// Receiver enable
@@ -75,12 +77,13 @@ const macmiiar = packed struct(u32) {
     /// MII write
     mw: u1,
     /// Clock range
-    cr: u4,
+    cr: u3,
+    _0: u1,
     /// MII register
     mr: u5,
     /// PHY address
     pa: u5,
-    _0: u16,
+    _1: u16,
 };
 
 const macfcr = packed struct(u32) {
@@ -426,87 +429,29 @@ pub fn Ethernet(baseAddress: [*]align(4) volatile u8) type {
         /// DMA current host receive buffer address register
         dmachrbar: *volatile u32 = @ptrCast(&baseAddress[0x1054]),
 
-        /// PHY Basic Mode Control Register
-        const phybmcr = packed struct(u16) {
-            /// Collision test
-            ct: u1,
-            _0: u7,
-            /// Full duplex mode
-            fdm: u1,
-            /// Restart auto-negotiation
-            ranc: u1,
-            /// Isolate
-            iso: u1,
-            /// Power down
-            pd: u1,
-            /// Auto-negotiation enable
-            ane: u1,
-            /// Speed select
-            ss: u1,
-            /// Loopback
-            lb: u1,
-            /// Reset
-            rst: u1,
-        };
-        /// PHY Basic Mode Status Register
-        const phybmsr = packed struct(u16) {
-            _0: u2,
-            /// Link status
-            ls: enum(u1) {
-                down = 0,
-                up = 1,
-            },
-            _1: u2,
-            /// Auto-negotiation complete
-            anc: u1,
-            _2: u5,
-            /// 10Base-T half duplex support
-            hds: u1,
-            /// 10Base-T full duplex support
-            fds: u1,
-            /// 100Base-TX half duplex support
-            hdx: u1,
-            /// 100Base-TX full duplex support
-            fdx: u1,
-            /// 100Base-T4 support
-            t4: u1,
-        };
-
-        pub fn readPhyStatus(self: @This(), phy: u5) phybmsr {
-            return @bitCast(self.readPhyRegister(phy, 1));
-        }
-
-        pub fn readPhyControl(self: @This(), phy: u5) phybmcr {
-            return @bitCast(self.readPhyRegister(phy, 0));
-        }
-
-        pub fn writePhyControl(self: @This(), phy: u5, data: phybmcr) void {
-            self.writePhyRegister(phy, 0, @bitCast(data));
-        }
-
-        fn readPhyRegister(self: @This(), phy: u5, reg: u5) u16 {
+        pub fn readPhyRegister(self: @This(), phyAddress: u5, comptime register: phy.Register) phy.Register.registerType(register) {
             while (self.macmiiar.mb) {}
 
             self.macmiiar.mw = 0;
             self.macmiiar.cr = 0b0111;
-            self.macmiiar.mr = reg;
-            self.macmiiar.pa = phy;
+            self.macmiiar.mr = @intFromEnum(register);
+            self.macmiiar.pa = phyAddress;
 
             self.macmiiar.mb = true;
 
             while (self.macmiiar.mb) {}
 
-            return self.macmiidr.data;
+            return @bitCast(self.macmiidr.data);
         }
 
-        fn writePhyRegister(self: @This(), phy: u5, reg: u5, data: u16) void {
+        pub fn writePhyRegister(self: @This(), phyAddress: u5, comptime register: phy.Register, data: phy.Register.registerType(register)) void {
             while (self.macmiiar.mb) {}
 
             self.macmiiar.mw = 1;
             self.macmiiar.cr = 0b0111;
-            self.macmiiar.mr = reg;
-            self.macmiiar.pa = phy;
-            self.macmiidr.data = data;
+            self.macmiiar.mr = @intFromEnum(register);
+            self.macmiiar.pa = phyAddress;
+            self.macmiidr.data = @bitCast(data);
 
             self.macmiiar.mb = true;
 
@@ -514,3 +459,76 @@ pub fn Ethernet(baseAddress: [*]align(4) volatile u8) type {
         }
     };
 }
+
+pub const DmaTransmitDescriptor = packed struct(u128) {
+    status: packed struct(u32) {
+        /// deferred bit
+        df: u1 = 0,
+        /// underflow error
+        uf: u1 = 0,
+        /// excessive deferral
+        ed: u1 = 0,
+        /// collision count
+        cc: u4 = 0,
+        /// VLAN frame
+        vf: u1 = 0,
+        /// excessive collision
+        ec: u1 = 0,
+        /// late collision
+        lco: u1 = 0,
+        /// no carrier
+        nc: u1 = 0,
+        /// loss of carrier
+        lca: u1 = 0,
+        /// IP payload error
+        ipe: u1 = 0,
+        /// frame flushed
+        ff: u1 = 0,
+        /// jabber timeout
+        jt: u1 = 0,
+        /// error summary
+        es: u1 = 0,
+        /// IP header error
+        ihe: u1 = 0,
+        /// transmit time stamp status
+        ttss: u1 = 0,
+        _0: u2 = 0,
+        /// second address chained
+        tch: u1,
+        /// transmit end of ring
+        ter: u1,
+        /// Checksum insertion control
+        cic: enum(u2) {
+            disabled = 0b00,
+            onlyIpHeader = 0b01,
+            ipHeaderAndPayload = 0b10,
+            all = 0b11,
+        } = .disabled,
+        _1: u1 = 0,
+        /// transmit timestamp enable
+        ttse: u1 = 0,
+        /// disable padding
+        dp: u1 = 0,
+        /// disable crc
+        dc: u1 = 0,
+        /// first segment
+        fs: u1,
+        /// last segment
+        ls: u1,
+        /// interrupt on completion
+        ic: u1 = 0,
+        /// own bit
+        own: enum(u1) {
+            cpu = 0,
+            dma = 1,
+        },
+    },
+    controlBufferSize: packed struct(u32) {
+        buffer1ByteCount: u13,
+        _0: u3 = 0, // reserved
+        buffer2ByteCount: u13,
+        _1: u3 = 0, // reserved
+    },
+    buffer1Address: u32,
+    nextDescriptorAddress: u32,
+};

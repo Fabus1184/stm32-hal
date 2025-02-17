@@ -101,7 +101,7 @@ fn Systick(baseAddress: [*]volatile u32) type {
             /// selects the clock source
             /// - 0: external reference clock
             /// - 1: processor clock
-            clksrouce: u1,
+            clksource: u1,
             _: u13,
             /// 1 if the timer counted to 0 since the last read of this register
             countflag: bool,
