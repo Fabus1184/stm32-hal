@@ -158,11 +158,41 @@ export fn main() noreturn {
         std.log.info("Hello, world!", .{});
         std.log.debug("random number: {!x:0>8}", .{hal.RNG.readU32()});
 
-        sendEthFrame() catch {
+        hal.ETH.sendFrameSync(&ethernetFrame) catch {
             std.builtin.panic("failed to send frame", null, null);
         };
+
+        var buffer: [255]u8 = undefined;
+        const len = hal.ETH.receiveFrameSync(&buffer) catch {
+            std.builtin.panic("failed to receive frame", null, null);
+        };
+        std.log.info("received frame with length {}", .{len});
+
+        const destMac = buffer[0..6];
+        const sourceMac = buffer[6..12];
+        const ethType = buffer[12..14];
+        const payload = buffer[14..len];
+
+        if (std.mem.eql(u8, destMac, &.{ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF })) {
+            // broadcast frame
+        } else {
+            std.log.info("destMac: {x}, sourceMac: {x}, ethType: {x}, payload: {s}", .{ destMac, sourceMac, ethType, payload });
+        }
     }
 }
+
+const ethernetFrame: [27]u8 linksection(".data") = [_]u8{
+    // Destination MAC (6 bytes)
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+    // Source MAC (6 bytes)
+    0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
+    // Ethernet type (2 bytes)
+    0x00, 0x00,
+    // Payload
+    'H',  'e',  'l',  'l',
+    'o',  ',',  ' ',  'w',  'o',  'r',
+    'l',  'd',  '!',
+};
 
 fn setupEth() void {
     const ETH_RMII_MDC = .{ hal.GPIOC, 1 };
@@ -256,63 +286,11 @@ fn setupEth() void {
     hal.ETH.maccr.dm = 1;
 
     hal.ETH.macfcr.tfce = 0;
+    hal.ETH.macfcr.rfce = 0;
 
     hal.ETH.maca0hr.maca0h = 0x6969;
     hal.ETH.maca0lr.* = 0x69696969;
     std.log.info("mac address: {x}:{x}", .{ hal.ETH.maca0hr.maca0h, hal.ETH.maca0lr.* });
-}
-
-var frame: [27]u8 align(4) = [_]u8{
-    // Destination MAC (6 bytes)
-    0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
-    // Source MAC (6 bytes)
-    0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
-    // Ethernet type (2 bytes)
-    0x00, 0x00,
-    // Payload
-    'H',  'e',  'l',  'l',
-    'o',  ',',  ' ',  'w',  'o',  'r',
-    'l',  'd',  '!',
-};
-var txDescriptor1: hal.ethernet.DmaTransmitDescriptor align(4) = undefined;
-
-fn sendEthFrame() !void {
-    txDescriptor1 = .{
-        .status = .{ .tch = 1, .ter = 0, .fs = 1, .ls = 1, .own = .cpu },
-        .controlBufferSize = .{ .buffer1ByteCount = @intCast(frame.len), .buffer2ByteCount = 0 },
-        .buffer1Address = @intFromPtr(&frame),
-        .nextDescriptorAddress = 0,
-    };
-
-    hal.ETH.dmatdlar.* = @intFromPtr(&txDescriptor1);
-    hal.ETH.dmardlar.* = 0;
-
-    hal.ETH.maccr.te = 1;
-    hal.ETH.dmaomr.ftf = 1;
-    hal.ETH.dmaomr.st = 1;
-
-    std.log.info("sending frame with descriptor {}", .{std.json.fmt(txDescriptor1, .{})});
-
-    txDescriptor1.status.own = .dma;
-    hal.ETH.dmatpdr.* = 1;
-
-    while (txDescriptor1.status.own == .dma) {
-        std.log.debug("waiting for frame to be sent", .{});
-        std.log.debug("txDescriptor1.status: {}", .{std.json.fmt(txDescriptor1.status, .{})});
-        std.log.debug("ETH DMASR: {}", .{std.json.fmt(hal.ETH.dmasr.*, .{})});
-
-        if (hal.ETH.dmasr.fbes == 1) {
-            return error.@"fatal bus error";
-        }
-
-        for (0..100_000) |_| {
-            asm volatile ("nop");
-        }
-    }
-
-    hal.ETH.dmaomr.st = 0;
-
-    std.log.info("sent frame", .{});
 }
 
 //var dmaBuffer: [16]u8 align(4) = undefined;

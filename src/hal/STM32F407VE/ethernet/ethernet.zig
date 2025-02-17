@@ -290,7 +290,15 @@ const dmasr = packed struct(u32) {
     /// Normal interrupt summary
     nis: u1,
     /// Receive process state
-    rps: u3,
+    rps: enum(u3) {
+        stopped = 0b000,
+        fetching = 0b001,
+        waiting = 0b011,
+        suspended = 0b100,
+        closing = 0b101,
+        transferring = 0b111,
+        _,
+    },
     /// Transmit process state
     tps: enum(u3) {
         stopped = 0b000,
@@ -457,11 +465,96 @@ pub fn Ethernet(baseAddress: [*]align(4) volatile u8) type {
 
             while (self.macmiiar.mb) {}
         }
+
+        pub fn sendFrameSync(self: @This(), frame: []const u8) !void {
+            var txDescriptor1: DmaTransmitDescriptor align(4) = undefined;
+            var txDescriptor2: DmaTransmitDescriptor align(4) = undefined;
+
+            txDescriptor1 = .{
+                .tdes0 = .{ .tch = 1, .ter = 0, .fs = 1, .ls = 1, .own = .cpu },
+                .tdes1 = .{ .buffer1ByteCount = @intCast(frame.len), .buffer2ByteCount = 0 },
+                .tdes2 = @intFromPtr(frame.ptr),
+                .tdes3 = @intFromPtr(&txDescriptor2),
+            };
+            txDescriptor2 = .{
+                .tdes0 = .{ .tch = 1, .ter = 0, .fs = 1, .ls = 1, .own = .cpu },
+                .tdes1 = .{ .buffer1ByteCount = @intCast(frame.len), .buffer2ByteCount = 0 },
+                .tdes2 = 0,
+                .tdes3 = 0,
+            };
+
+            self.dmatdlar.* = @intFromPtr(&txDescriptor1);
+            self.dmardlar.* = 0;
+
+            self.maccr.te = 1;
+            self.dmaomr.ftf = 1;
+            self.dmaomr.st = 1;
+
+            std.log.debug("sending frame with descriptor {}", .{std.json.fmt(txDescriptor1, .{})});
+
+            txDescriptor1.tdes0.own = .dma;
+            self.dmatpdr.* = 1;
+
+            std.log.debug("waiting for frame to be sent", .{});
+            while (txDescriptor1.tdes0.own == .dma) {
+                if (self.dmasr.fbes == 1) {
+                    std.log.err("fatal bus error, dmasr: {}", .{std.json.fmt(self.dmasr.*, .{})});
+                    return error.@"fatal bus error";
+                }
+            }
+
+            self.dmaomr.st = 0;
+
+            std.log.debug("sent frame", .{});
+        }
+
+        pub fn receiveFrameSync(self: @This(), frame: []u8) !usize {
+            var rxDescriptor1: DmaReceiveDescriptor align(4) = undefined;
+            var rxDescriptor2: DmaReceiveDescriptor align(4) = undefined;
+
+            rxDescriptor1 = .{
+                .rdes0 = .{ .fs = 1, .ls = 1, .own = .cpu },
+                .rdes1 = .{ .buffer1ByteCount = @intCast(frame.len), .buffer2ByteCount = 0, .rer = 0, .rch = 1 },
+                .rdes2 = @intFromPtr(frame.ptr),
+                .rdes3 = @intFromPtr(&rxDescriptor2),
+            };
+            rxDescriptor2 = .{
+                .rdes0 = .{ .fs = 1, .ls = 1, .own = .cpu },
+                .rdes1 = .{ .buffer1ByteCount = @intCast(frame.len), .buffer2ByteCount = 0, .rer = 0, .rch = 1 },
+                .rdes2 = 0,
+                .rdes3 = 0,
+            };
+
+            self.dmardlar.* = @intFromPtr(&rxDescriptor1);
+            self.dmatdlar.* = 0;
+
+            self.maccr.re = 1;
+            self.dmaomr.sr = 1;
+
+            std.log.info("receiving frame with descriptor {}", .{std.json.fmt(rxDescriptor1, .{})});
+
+            rxDescriptor1.rdes0.own = .dma;
+            self.dmarpdr.* = 1;
+
+            std.log.debug("waiting for frame to be received", .{});
+            while (rxDescriptor1.rdes0.own == .dma) {
+                if (self.dmasr.fbes == 1) {
+                    std.log.err("fatal bus error, dmasr: {}", .{std.json.fmt(self.dmasr.*, .{})});
+                    return error.@"fatal bus error";
+                }
+            }
+
+            self.dmaomr.sr = 0;
+
+            std.log.info("received frame", .{});
+
+            return rxDescriptor1.rdes0.fl;
+        }
     };
 }
 
 pub const DmaTransmitDescriptor = packed struct(u128) {
-    status: packed struct(u32) {
+    tdes0: packed struct(u32) {
         /// deferred bit
         df: u1 = 0,
         /// underflow error
@@ -523,12 +616,77 @@ pub const DmaTransmitDescriptor = packed struct(u128) {
             dma = 1,
         },
     },
-    controlBufferSize: packed struct(u32) {
+    /// Buffer sizes
+    tdes1: packed struct(u32) {
         buffer1ByteCount: u13,
         _0: u3 = 0, // reserved
         buffer2ByteCount: u13,
         _1: u3 = 0, // reserved
     },
-    buffer1Address: u32,
-    nextDescriptorAddress: u32,
+    /// Buffer 1 pointer
+    tdes2: u32,
+    /// Buffer 2 pointer (if used)
+    tdes3: u32,
+};
+
+pub const DmaReceiveDescriptor = packed struct(u128) {
+    rdes0: packed struct(u32) {
+        /// Payload checksum error / extended status available
+        pce_esa: u1 = 0,
+        /// CRC error
+        ce: u1 = 0,
+        /// Dribble bit error
+        dbe: u1 = 0,
+        /// Receive error
+        re: u1 = 0,
+        /// Receive watchdog timeout
+        rwt: u1 = 0,
+        /// Frame type
+        ft: u1 = 0,
+        /// Late collision
+        lc: u1 = 0,
+        /// IP header checksum error / time stamp valid
+        iphce_tsv: u1 = 0,
+        /// Last descriptor
+        ls: u1,
+        /// First descriptor
+        fs: u1,
+        /// VLAN tag
+        vlan: u1 = 0,
+        /// Overflow error
+        oe: u1 = 0,
+        /// Length error
+        le: u1 = 0,
+        /// Source address filter fail
+        saf: u1 = 0,
+        /// Descriptor error
+        de: u1 = 0,
+        /// Error summary
+        es: u1 = 0,
+        /// Frame length
+        fl: u14 = 0,
+        /// Destination address filter fail
+        afm: u1 = 0,
+        /// Own bit
+        own: enum(u1) {
+            cpu = 0,
+            dma = 1,
+        },
+    },
+    rdes1: packed struct(u32) {
+        buffer1ByteCount: u13,
+        _0: u1 = 0,
+        /// Second address chained
+        rch: u1,
+        /// Receive end of ring
+        rer: u1,
+        buffer2ByteCount: u13,
+        _1: u2 = 0,
+        /// Disable interrupt on completion
+        dic: u1 = 0,
+    },
+    /// Buffer 1 address
+    rdes2: u32,
+    /// Buffer 2 address (if used)
+    rdes3: u32,
 };
