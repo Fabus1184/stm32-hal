@@ -275,20 +275,13 @@ var frame: [27]u8 align(4) = [_]u8{
     'l',  'd',  '!',
 };
 var txDescriptor1: hal.ethernet.DmaTransmitDescriptor align(4) = undefined;
-var txDescriptor2: hal.ethernet.DmaTransmitDescriptor align(4) = undefined;
 
 fn sendEthFrame() !void {
     txDescriptor1 = .{
         .status = .{ .tch = 1, .ter = 0, .fs = 1, .ls = 1, .own = .cpu },
         .controlBufferSize = .{ .buffer1ByteCount = @intCast(frame.len), .buffer2ByteCount = 0 },
         .buffer1Address = @intFromPtr(&frame),
-        .nextDescriptorAddress = @intFromPtr(&txDescriptor2),
-    };
-    txDescriptor2 = .{
-        .status = .{ .tch = 1, .ter = 0, .fs = 1, .ls = 1, .own = .cpu },
-        .controlBufferSize = .{ .buffer1ByteCount = @intCast(frame.len), .buffer2ByteCount = 0 },
-        .buffer1Address = @intFromPtr(&frame),
-        .nextDescriptorAddress = @intFromPtr(&txDescriptor1),
+        .nextDescriptorAddress = 0,
     };
 
     hal.ETH.dmatdlar.* = @intFromPtr(&txDescriptor1);
