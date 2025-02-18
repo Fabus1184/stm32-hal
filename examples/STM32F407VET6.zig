@@ -1,11 +1,8 @@
 const std = @import("std");
 
-const gpio = @import("hal/gpio.zig");
+const hal = @import("hal").STM32F407VE;
 
-const core = @import("core/cortex-m4.zig");
-usingnamespace core;
-
-const hal = @import("hal/STM32F407VE/hal.zig");
+const ipv4 = @import("ipv4.zig");
 
 pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
     var buffer: [512]u8 = undefined;
@@ -52,7 +49,7 @@ const LED2 = 14;
 const LED3 = 15;
 
 fn systickInterrupt() void {
-    _ = core.SYSTICK.csr.*;
+    _ = hal.core.SYSTICK.csr.*;
 
     hal.GPIOE.setLevel(LED3, ~hal.GPIOE.getLevel(LED3));
 
@@ -103,13 +100,13 @@ export fn main() noreturn {
     hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE);
 
     // configure systick to tick every 1s
-    core.SYSTICK.rvr.value = std.math.maxInt(u24);
-    core.SYSTICK.cvr.value = 0;
-    core.SYSTICK.csr.tickint = 1;
-    core.SYSTICK.csr.clksource = 1;
+    hal.core.SYSTICK.rvr.value = std.math.maxInt(u24);
+    hal.core.SYSTICK.cvr.value = 0;
+    hal.core.SYSTICK.csr.tickint = 1;
+    hal.core.SYSTICK.csr.clksource = 1;
 
-    core.SoftExceptionHandler.put(.SysTick, systickInterrupt);
-    core.SYSTICK.csr.enable = true;
+    hal.core.SoftExceptionHandler.put(.SysTick, systickInterrupt);
+    hal.core.SYSTICK.csr.enable = true;
 
     std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 
@@ -159,24 +156,37 @@ export fn main() noreturn {
         std.log.debug("random number: {!x:0>8}", .{hal.RNG.readU32()});
 
         hal.ETH.sendFrameSync(&ethernetFrame) catch {
-            std.builtin.panic("failed to send frame", null, null);
+            @panic("failed to send frame");
         };
 
         var buffer: [255]u8 = undefined;
         const len = hal.ETH.receiveFrameSync(&buffer) catch {
-            std.builtin.panic("failed to receive frame", null, null);
+            @panic("failed to receive frame");
         };
-        std.log.info("received frame with length {}", .{len});
 
         const destMac = buffer[0..6];
         const sourceMac = buffer[6..12];
         const ethType = buffer[12..14];
         const payload = buffer[14..len];
 
+        std.log.info("received frame with length {}, from {x} to {x}, ethType: {x}", .{ len, sourceMac, destMac, ethType });
+
         if (std.mem.eql(u8, destMac, &.{ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF })) {
             // broadcast frame
+        } else if (std.mem.eql(u8, ethType, &.{ 0x08, 0x00 })) {
+            std.log.debug("received IPv4 frame: {x}", .{payload});
+
+            // IPv4 frame
+            const headerBytes = payload[0..20];
+
+            var header = std.mem.bytesToValue(ipv4.Ipv4Header, headerBytes);
+            header.total_length = std.mem.bigToNative(u16, header.total_length);
+            header.identification = std.mem.bigToNative(u16, header.identification);
+            header.header_checksum = std.mem.bigToNative(u16, header.header_checksum);
+
+            std.log.info("IPv4 frame: {}", .{std.json.fmt(header, .{ .whitespace = .indent_2 })});
         } else {
-            std.log.info("destMac: {x}, sourceMac: {x}, ethType: {x}, payload: {s}", .{ destMac, sourceMac, ethType, payload });
+            std.log.info("unknown frame: destMac: {x}, sourceMac: {x}, ethType: {x}, payload: {s}", .{ destMac, sourceMac, ethType, payload });
         }
     }
 }

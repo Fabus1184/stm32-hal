@@ -9,6 +9,9 @@ pub const dma = @import("dma.zig");
 pub const gpio = @import("../gpio.zig");
 pub const memory = @import("../memory.zig");
 
+pub const core = @import("../core/cortex-m4.zig");
+usingnamespace core;
+
 pub const RCC = rcc.Rcc(
     @ptrFromInt(0x4002_3800),
     16_000_000,

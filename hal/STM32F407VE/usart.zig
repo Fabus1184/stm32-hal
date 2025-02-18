@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Register = @import("../../register.zig").Register;
+const Register = @import("../register.zig").Register;
 
 const StatusRegister = packed struct(u32) {
     /// Parity error

@@ -12,14 +12,23 @@ pub fn build(b: *std.Build) void {
     } });
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
+    const hal = b.createModule(.{
+        .root_source_file = b.path("hal/hal.zig"),
+        .optimize = optimize,
+        .target = target,
+        .strip = false,
+    });
+
     const firmware = b.addExecutable(.{
         .name = "firmware.elf",
-        .root_source_file = b.path("src/STM32F407VET6.zig"),
+        .root_source_file = b.path("examples/STM32F407VET6.zig"),
         .optimize = optimize,
         .target = target,
         .strip = false,
     });
     firmware.entry = .disabled;
+
+    firmware.root_module.addImport("hal", hal);
 
     firmware.setLinkerScript(b.path("STM32F407VET6.ld"));
 
