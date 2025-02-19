@@ -2,7 +2,7 @@ const std = @import("std");
 
 const hal = @import("hal").STM32F407VE;
 
-const ipv4 = @import("ipv4.zig");
+const inet = @import("internet.zig");
 
 pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
     var buffer: [512]u8 = undefined;
@@ -142,51 +142,90 @@ export fn main() noreturn {
         std.log.err("failed to initialize RNG: {}", .{err});
     };
 
-    setupEth();
+    const MAC_ADDRESS = inet.MacAddress{ .a = 0x68, .b = 0x69, .c = 0x69, .d = 0x69, .e = 0x69, .f = 0x69 };
+    const IP_ADDRESS = inet.Ipv4Address{ .a = 10, .b = 69, .c = 69, .d = 123 };
+
+    setupEth(0x69_69_69_69_69_68);
 
     while (true) {
-        for (0..10_000_000) |_| {
-            asm volatile ("nop");
-        }
-
-        //hal.GPIOE.setLevel(LED1, ~hal.GPIOE.getLevel(LED1));
-        //hal.GPIOE.setLevel(LED2, ~hal.GPIOE.getLevel(LED2));
-
-        std.log.info("Hello, world!", .{});
-        std.log.debug("random number: {!x:0>8}", .{hal.RNG.readU32()});
-
-        hal.ETH.sendFrameSync(&ethernetFrame) catch {
-            @panic("failed to send frame");
-        };
+        //hal.ETH.sendFrameSync(&ethernetFrame) catch {
+        //    @panic("failed to send frame");
+        //};
 
         var buffer: [255]u8 = undefined;
         const len = hal.ETH.receiveFrameSync(&buffer) catch {
             @panic("failed to receive frame");
         };
 
-        const destMac = buffer[0..6];
-        const sourceMac = buffer[6..12];
-        const ethType = buffer[12..14];
-        const payload = buffer[14..len];
+        const frame = inet.EthernetFrame.fromBigEndianBytes(buffer[0 .. len - 4]);
 
-        std.log.info("received frame with length {}, from {x} to {x}, ethType: {x}", .{ len, sourceMac, destMac, ethType });
+        std.log.info("received frame {x}, payload length {}", .{ std.json.fmt(frame.header, .{}), frame.payload.len });
+        std.log.info("payload: {x}", .{frame.payload});
 
-        if (std.mem.eql(u8, destMac, &.{ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF })) {
-            // broadcast frame
-        } else if (std.mem.eql(u8, ethType, &.{ 0x08, 0x00 })) {
-            std.log.debug("received IPv4 frame: {x}", .{payload});
+        // broadcast frame
+        if (frame.header.destination.isBroadcast()) {
+            // ARP
+            if (frame.header.etherType == 0x0806) {
+                const arp = inet.ArpPacket.fromBigEndianBytes(frame.payload) catch {
+                    @panic("failed to parse ARP packet");
+                };
+                std.log.info("ARP packet: {}", .{std.json.fmt(arp, .{ .whitespace = .indent_2 })});
 
-            // IPv4 frame
-            const headerBytes = payload[0..20];
+                if (arp.operation == 1) {
+                    std.log.info("received ARP request", .{});
 
-            var header = std.mem.bytesToValue(ipv4.Ipv4Header, headerBytes);
-            header.total_length = std.mem.bigToNative(u16, header.total_length);
-            header.identification = std.mem.bigToNative(u16, header.identification);
-            header.header_checksum = std.mem.bigToNative(u16, header.header_checksum);
+                    // send ARP reply
+                    var arpReplyBuffer: [64]u8 = undefined;
+                    const n = inet.ArpPacket.make(2, MAC_ADDRESS, IP_ADDRESS, arp.sender_mac, arp.sender_ip, &arpReplyBuffer);
 
-            std.log.info("IPv4 frame: {}", .{std.json.fmt(header, .{ .whitespace = .indent_2 })});
+                    var ethReplyBuffer: [255]u8 = undefined;
+                    const n2 = inet.EthernetFrame.make(frame.header.source, MAC_ADDRESS, 0x0806, arpReplyBuffer[0..n], &ethReplyBuffer);
+
+                    hal.ETH.sendFrameSync(ethReplyBuffer[0..n2]) catch {
+                        @panic("failed to send ARP reply");
+                    };
+                } else {
+                    @panic("unsupported ARP operation");
+                }
+            }
+        } else
+        // IPv4
+        if (frame.header.etherType == 0x0800) {
+            const ipv4 = inet.Ipv4Packet.fromBigEndianBytes(frame.payload);
+
+            std.log.info("IPv4 frame: {}, payload length {}", .{ std.json.fmt(ipv4.header, .{}), ipv4.payload.len });
+            std.log.info("payload: {x}", .{ipv4.payload});
+
+            switch (ipv4.header.protocol) {
+                .icmp => {
+                    const icmp = inet.IcmpPacket.fromBigEndianBytes(ipv4.payload);
+                    std.log.info("ICMP header: {}", .{std.json.fmt(icmp.header, .{ .whitespace = .indent_2 })});
+
+                    switch (icmp.header.type) {
+                        8 => {
+                            std.log.info("received ICMP echo request, payload length {}", .{icmp.data.len});
+
+                            // send echo reply
+                            var icmpReplyBuffer: [255]u8 = undefined;
+                            const n = inet.IcmpPacket.make(0, 0, icmp.header.rest, icmp.data, &icmpReplyBuffer);
+
+                            var ipv4ReplyBuffer: [255]u8 = undefined;
+                            const n2 = inet.Ipv4Packet.make(ipv4.header.source_address, IP_ADDRESS, 0x1, 0xabcd, icmpReplyBuffer[0..n], &ipv4ReplyBuffer);
+
+                            var ethReplyBuffer: [255]u8 = undefined;
+                            const n3 = inet.EthernetFrame.make(frame.header.source, MAC_ADDRESS, 0x0800, ipv4ReplyBuffer[0..n2], &ethReplyBuffer);
+
+                            hal.ETH.sendFrameSync(ethReplyBuffer[0..n3]) catch {
+                                @panic("failed to send ICMP echo reply");
+                            };
+                        },
+                        else => {},
+                    }
+                },
+                else => {},
+            }
         } else {
-            std.log.info("unknown frame: destMac: {x}, sourceMac: {x}, ethType: {x}, payload: {s}", .{ destMac, sourceMac, ethType, payload });
+            std.log.info("unknown frame: {x}", .{std.json.fmt(frame.header, .{})});
         }
     }
 }
@@ -204,7 +243,7 @@ const ethernetFrame: [27]u8 linksection(".data") = [_]u8{
     'l',  'd',  '!',
 };
 
-fn setupEth() void {
+fn setupEth(macAddress: u48) void {
     const ETH_RMII_MDC = .{ hal.GPIOC, 1 };
     const ETH_RMII_RXD0 = .{ hal.GPIOC, 4 };
     const ETH_RMII_RXD1 = .{ hal.GPIOC, 5 };
@@ -298,9 +337,16 @@ fn setupEth() void {
     hal.ETH.macfcr.tfce = 0;
     hal.ETH.macfcr.rfce = 0;
 
-    hal.ETH.maca0hr.maca0h = 0x6969;
-    hal.ETH.maca0lr.* = 0x69696969;
-    std.log.info("mac address: {x}:{x}", .{ hal.ETH.maca0hr.maca0h, hal.ETH.maca0lr.* });
+    hal.ETH.maca0hr.maca0h = @intCast(macAddress >> 32);
+    hal.ETH.maca0lr.* = @truncate(macAddress);
+    std.log.info("mac address: {x}:{x}:{x}:{x}:{x}:{x}", .{
+        (macAddress >> 40) & 0xFF,
+        (macAddress >> 32) & 0xFF,
+        (macAddress >> 24) & 0xFF,
+        (macAddress >> 16) & 0xFF,
+        (macAddress >> 8) & 0xFF,
+        (macAddress >> 0) & 0xFF,
+    });
 }
 
 //var dmaBuffer: [16]u8 align(4) = undefined;

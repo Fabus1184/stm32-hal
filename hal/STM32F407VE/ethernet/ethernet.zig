@@ -546,7 +546,7 @@ pub fn Ethernet(baseAddress: [*]align(4) volatile u8) type {
 
             self.dmaomr.sr = 0;
 
-            std.log.info("received frame", .{});
+            std.log.info("received frame with length {}", .{rxDescriptor1.rdes0.fl});
 
             return rxDescriptor1.rdes0.fl;
         }
