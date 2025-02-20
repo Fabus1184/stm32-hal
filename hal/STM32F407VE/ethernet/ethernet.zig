@@ -352,7 +352,40 @@ const dmaomr = packed struct(u32) {
     dtcefd: u1,
     _5: u5,
 };
-const dmaier = packed struct(u32) { tie: u1, tpsie: u1, tbuie: u1, tjtie: u1, roie: u1, tuie: u1, rie: u1, rbuie: u1, rpsie: u1, rwtie: u1, etie: u1, _0: u2, fbeie: u1, erie: u1, aise: u1, nise: u1, _1: u15 };
+const dmaier = packed struct(u32) {
+    /// Transmit interrupt enable
+    tie: u1,
+    /// Transmit process stopped interrupt enable
+    tpsie: u1,
+    /// Transmit buffer unavailable interrupt enable
+    tbuie: u1,
+    /// Transmit jabber timeout interrupt enable
+    tjtie: u1,
+    /// Receive overflow interrupt enable
+    roie: u1,
+    /// Transmit underflow interrupt enable
+    tuie: u1,
+    /// Receive interrupt enable
+    rie: u1,
+    /// Receive buffer unavailable interrupt enable
+    rbuie: u1,
+    /// Receive process stopped interrupt enable
+    rpsie: u1,
+    /// Receive watchdog timeout interrupt enable
+    rwtie: u1,
+    /// Early transmit interrupt enable
+    etie: u1,
+    _0: u2,
+    /// Fatal bus error interrupt enable
+    fbeie: u1,
+    /// Early receive interrupt enable
+    erie: u1,
+    /// Abnormal interrupt summary enable
+    aise: u1,
+    /// Normal interrupt summary enable
+    nise: u1,
+    _1: u15,
+};
 const dmamfbocr = packed struct(u32) { mfc: u16, omfc: u1, mfa: u11, ofoc: u1, _0: u3 };
 
 pub fn Ethernet(baseAddress: [*]align(4) volatile u8) type {
@@ -471,7 +504,7 @@ pub fn Ethernet(baseAddress: [*]align(4) volatile u8) type {
             var txDescriptor2: DmaTransmitDescriptor align(4) = undefined;
 
             txDescriptor1 = .{
-                .tdes0 = .{ .tch = 1, .ter = 0, .fs = 1, .ls = 1, .own = .cpu },
+                .tdes0 = .{ .tch = 1, .ter = 0, .fs = 1, .ls = 1, .own = .cpu, .ic = 1 },
                 .tdes1 = .{ .buffer1ByteCount = @intCast(frame.len), .buffer2ByteCount = 0 },
                 .tdes2 = @intFromPtr(frame.ptr),
                 .tdes3 = @intFromPtr(&txDescriptor2),

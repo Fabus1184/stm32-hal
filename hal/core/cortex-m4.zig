@@ -164,7 +164,55 @@ const Exception = enum(u6) {
     DebugMonitor = 12,
     PendSV = 14,
     SysTick = 15,
-    _,
+    //
+    IRQ0 = 16,
+    IRQ1 = 17,
+    IRQ2 = 18,
+    IRQ3 = 19,
+    IRQ4 = 20,
+    IRQ5 = 21,
+    IRQ6 = 22,
+    IRQ7 = 23,
+    IRQ8 = 24,
+    IRQ9 = 25,
+    IRQ10 = 26,
+    IRQ11 = 27,
+    IRQ12 = 28,
+    IRQ13 = 29,
+    IRQ14 = 30,
+    IRQ15 = 31,
+    IRQ16 = 32,
+    IRQ17 = 33,
+    IRQ18 = 34,
+    IRQ19 = 35,
+    IRQ20 = 36,
+    IRQ21 = 37,
+    IRQ22 = 38,
+    IRQ23 = 39,
+    IRQ24 = 40,
+    IRQ25 = 41,
+    IRQ26 = 42,
+    IRQ27 = 43,
+    IRQ28 = 44,
+    IRQ29 = 45,
+    IRQ30 = 46,
+    IRQ31 = 47,
+    IRQ32 = 48,
+    IRQ33 = 49,
+    IRQ34 = 50,
+    IRQ35 = 51,
+    IRQ36 = 52,
+    IRQ37 = 53,
+    IRQ38 = 54,
+    IRQ39 = 55,
+    IRQ40 = 56,
+    IRQ41 = 57,
+    IRQ42 = 58,
+    IRQ43 = 59,
+    IRQ44 = 60,
+    IRQ45 = 61,
+    IRQ46 = 62,
+    IRQ47 = 63,
 };
 
 pub var SoftExceptionHandler = std.EnumMap(Exception, *const fn () void){};
@@ -180,4 +228,43 @@ export fn exceptionHandlerReal(pc: u32) callconv(.C) void {
         std.log.err("unhandled exception: {s}, pc: {x}", .{ @tagName(e), pc });
         std.builtin.panic("unhandled exception", null, pc);
     }
+}
+
+pub fn Nvic(comptime baseAddress: [*]align(4) volatile u8) type {
+    return struct {
+        pub const ictr = packed struct(u32) {
+            intlinesnum: u4,
+            __: u28,
+        };
+
+        ictr: *volatile ictr = @ptrCast(&baseAddress[0x4]),
+        iser: [*]volatile u32 = @ptrCast(&baseAddress[0x100]),
+        icer: [*]volatile u32 = @ptrCast(&baseAddress[0x180]),
+        ispr: [*]volatile u32 = @ptrCast(&baseAddress[0x200]),
+        icpr: [*]volatile u32 = @ptrCast(&baseAddress[0x280]),
+        iabr: [*]volatile u32 = @ptrCast(&baseAddress[0x300]),
+        ipr: [*]volatile u8 = @ptrCast(&baseAddress[0x400]),
+
+        pub fn enableInterrupt(self: @This(), interrupt: u32) void {
+            self.iser[interrupt / 32] |= @as(u32, 1) << @intCast(interrupt % 32);
+            std.log.debug("enabled interrupt {}: {b:0<32}", .{ interrupt, self.iser[interrupt / 32] });
+        }
+
+        pub fn disableInterrupt(self: @This(), interrupt: u32) void {
+            self.icer[interrupt / 32] |= @as(u32, 1) << @intCast(interrupt % 32);
+        }
+
+        pub fn setPending(self: @This(), interrupt: u32) void {
+            self.ispr[interrupt / 32] |= @as(u32, 1) << @intCast(interrupt % 32);
+            std.log.debug("set pending interrupt {}: {b:0<32}", .{ interrupt, self.ispr[interrupt / 32] });
+        }
+
+        pub fn clearPending(self: @This(), interrupt: u32) void {
+            self.icpr[interrupt / 32] |= @as(u32, 1) << @intCast(interrupt % 32);
+        }
+
+        pub fn setPriority(self: @This(), interrupt: u32, priority: u4) void {
+            self.ipr[interrupt] = @as(u8, priority) << 4;
+        }
+    };
 }

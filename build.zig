@@ -19,33 +19,36 @@ pub fn build(b: *std.Build) void {
         .strip = false,
     });
 
-    const firmware = b.addExecutable(.{
-        .name = "firmware.elf",
-        .root_source_file = b.path("examples/STM32F407VET6.zig"),
-        .optimize = optimize,
-        .target = target,
-        .strip = false,
-    });
-    firmware.entry = .disabled;
+    const examples = .{ "ethernet", "button" };
+    inline for (examples) |example| {
+        const firmware = b.addExecutable(.{
+            .name = example ++ ".elf",
+            .root_source_file = b.path("examples/STM32F407VET6/" ++ example ++ ".zig"),
+            .optimize = optimize,
+            .target = target,
+            .strip = false,
+        });
+        firmware.entry = .disabled;
 
-    firmware.root_module.addImport("hal", hal);
+        firmware.root_module.addImport("hal", hal);
 
-    firmware.setLinkerScript(b.path("STM32F407VET6.ld"));
+        firmware.setLinkerScript(b.path("STM32F407VET6.ld"));
 
-    b.installArtifact(firmware);
+        b.installArtifact(firmware);
 
-    const run = b.addSystemCommand(&.{
-        "/opt/stm32cubeprog/bin/STM32_Programmer_CLI",
-        "-c",
-        "port=SWD",
-        "-w",
-        "zig-out/bin/firmware.elf",
-        "0x08000000",
-        "-rst",
-    });
-    run.has_side_effects = true;
+        const run = b.addSystemCommand(&.{
+            "/opt/stm32cubeprog/bin/STM32_Programmer_CLI",
+            "-c",
+            "port=SWD",
+            "-w",
+            "zig-out/bin/" ++ example ++ ".elf",
+            "0x08000000",
+            "-rst",
+        });
+        run.has_side_effects = true;
 
-    const runStep = b.step("run", "Run firmware on target");
-    runStep.dependOn(b.getInstallStep());
-    runStep.dependOn(&run.step);
+        const runStep = b.step("run-" ++ example, "Run " ++ example);
+        runStep.dependOn(b.getInstallStep());
+        runStep.dependOn(&run.step);
+    }
 }

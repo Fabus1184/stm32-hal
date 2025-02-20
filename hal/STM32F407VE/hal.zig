@@ -5,12 +5,15 @@ pub const ethernet = @import("ethernet/ethernet.zig");
 pub const flash = @import("flash.zig");
 pub const syscfg = @import("syscfg.zig");
 pub const dma = @import("dma.zig");
+pub const exti = @import("exti.zig");
 
 pub const gpio = @import("../gpio.zig");
 pub const memory = @import("../memory.zig");
 
 pub const core = @import("../core/cortex-m4.zig");
 usingnamespace core;
+
+pub const NVIC = core.Nvic(@ptrFromInt(0xE000_E000)){};
 
 pub const RCC = rcc.Rcc(
     @ptrFromInt(0x4002_3800),
@@ -46,3 +49,5 @@ pub const SYSCFG = syscfg.Syscfg(@ptrFromInt(0x4001_3800)){};
 
 pub const DMA1 = dma.Dma(@ptrFromInt(0x4002_6000)){};
 pub const DMA2 = dma.Dma(@ptrFromInt(0x4002_6400)){};
+
+pub const EXTI = exti.Exti(@ptrFromInt(0x4001_3C00)){};

@@ -347,6 +347,13 @@ fn setupEth(macAddress: u48) void {
         (macAddress >> 8) & 0xFF,
         (macAddress >> 0) & 0xFF,
     });
+
+    hal.ETH.dmaier.nise = 1;
+    hal.ETH.dmaier.rie = 1;
+    hal.ETH.dmaier.tie = 1;
+
+    hal.NVIC.setPriority(61, 7);
+    hal.NVIC.enableInterrupt(61);
 }
 
 //var dmaBuffer: [16]u8 align(4) = undefined;
