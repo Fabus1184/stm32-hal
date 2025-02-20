@@ -13,6 +13,10 @@ pub const memory = @import("../memory.zig");
 pub const core = @import("../core/cortex-m4.zig");
 usingnamespace core;
 
+pub const managed = struct {
+    pub const ethernet = @import("managed/ethernet.zig");
+};
+
 pub const NVIC = core.Nvic(@ptrFromInt(0xE000_E000)){};
 
 pub const RCC = rcc.Rcc(
@@ -39,7 +43,7 @@ pub const USART1 = usart.Usart(@ptrFromInt(0x4001_1000)){};
 pub const USART2 = usart.Usart(@ptrFromInt(0x4001_4400)){};
 pub const USART3 = usart.Usart(@ptrFromInt(0x4000_4800)){};
 
-pub const ETH = ethernet.Ethernet(@ptrFromInt(0x4002_8000)){};
+pub var ETH = ethernet.Ethernet(@ptrFromInt(0x4002_8000)){};
 
 pub var RNG = rng.Rng(@ptrFromInt(0x5006_0800)){};
 
