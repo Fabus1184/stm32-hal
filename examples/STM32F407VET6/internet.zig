@@ -58,9 +58,25 @@ pub const EthernetFrame = struct {
     }
 };
 
-pub const Ipv4Address = packed struct(u32) { a: u8, b: u8, c: u8, d: u8 };
+pub const Ipv4Address = packed struct(u32) {
+    a: u8,
+    b: u8,
+    c: u8,
+    d: u8,
+
+    pub fn from(u8a: u8, u8b: u8, u8c: u8, u8d: u8) Ipv4Address {
+        return .{ .a = u8a, .b = u8b, .c = u8c, .d = u8d };
+    }
+};
 
 pub const Ipv4Packet = struct {
+    const Protocol = enum(u8) {
+        icmp = 0x01,
+        tcp = 0x06,
+        udp = 0x11,
+        _,
+    };
+
     const Ipv4Header = packed struct {
         ihl: u4,
         version: enum(u4) {
@@ -78,12 +94,7 @@ pub const Ipv4Packet = struct {
             fragment_offset: u13,
         },
         ttl: u8,
-        protocol: enum(u8) {
-            icmp = 0x01,
-            tcp = 0x06,
-            udp = 0x11,
-            _,
-        },
+        protocol: Protocol,
         header_checksum: u16,
         source_address: Ipv4Address,
         destination_address: Ipv4Address,
@@ -108,7 +119,7 @@ pub const Ipv4Packet = struct {
         };
     }
 
-    pub fn make(dest: Ipv4Address, source: Ipv4Address, protocol: u8, identification: u16, payload: []const u8, buffer: []u8) usize {
+    pub fn make(dest: Ipv4Address, source: Ipv4Address, protocol: Protocol, identification: u16, payload: []const u8, buffer: []u8) usize {
         var i: usize = 0;
 
         const header = Ipv4Header{
@@ -120,7 +131,7 @@ pub const Ipv4Packet = struct {
             .identification = std.mem.nativeToBig(u16, identification),
             .flags = @bitCast(@as(u16, std.mem.nativeToBig(u16, 0x4000))),
             .ttl = 64,
-            .protocol = @enumFromInt(protocol),
+            .protocol = protocol,
             .header_checksum = 0,
             .source_address = source,
             .destination_address = dest,
@@ -231,6 +242,112 @@ pub const IcmpPacket = struct {
 
         const checksum = std.mem.nativeToBig(u16, internetChecksum(buffer[0..i]));
         @memcpy(buffer[2..4], std.mem.toBytes(checksum)[0..2]);
+
+        return i;
+    }
+};
+
+pub const TcpPacket = struct {
+    pub const Flags = packed struct(u8) {
+        fin: bool = false,
+        syn: bool = false,
+        rst: bool = false,
+        psh: bool = false,
+        ack: bool = false,
+        urg: bool = false,
+        ece: bool = false,
+        cwr: bool = false,
+    };
+    const TcpHeader = packed struct {
+        source_port: u16,
+        destination_port: u16,
+        sequence_number: u32,
+        acknowledgment_number: u32,
+        reserved: u4 = 0,
+        data_offset: u4,
+        flags: Flags,
+        window_size: u16,
+        checksum: u16,
+        urgent_pointer: u16,
+
+        const SIZE: usize = @bitSizeOf(@This()) / 8;
+    };
+
+    header: TcpHeader,
+    data: []const u8,
+
+    pub fn fromBigEndianBytes(bytes: []const u8) @This() {
+        var i: usize = 0;
+
+        var header = std.mem.bytesToValue(TcpHeader, bytes);
+        header.source_port = std.mem.bigToNative(u16, header.source_port);
+        header.destination_port = std.mem.bigToNative(u16, header.destination_port);
+        header.sequence_number = std.mem.bigToNative(u32, header.sequence_number);
+        header.acknowledgment_number = std.mem.bigToNative(u32, header.acknowledgment_number);
+        header.window_size = std.mem.bigToNative(u16, header.window_size);
+        header.checksum = std.mem.bigToNative(u16, header.checksum);
+        header.urgent_pointer = std.mem.bigToNative(u16, header.urgent_pointer);
+        i += TcpHeader.SIZE;
+
+        return .{
+            .header = header,
+            .data = bytes[i..],
+        };
+    }
+
+    pub fn make(
+        tcpPacket: TcpPacket,
+        /// ip parameters needed for checksum calculation
+        ip_options: struct {
+            source_address: Ipv4Address,
+            destination_address: Ipv4Address,
+        },
+        buffer: []u8,
+    ) usize {
+        var i: usize = 0;
+
+        var raw: TcpHeader = .{
+            .source_port = std.mem.nativeToBig(u16, tcpPacket.header.source_port),
+            .destination_port = std.mem.nativeToBig(u16, tcpPacket.header.destination_port),
+            .sequence_number = std.mem.nativeToBig(u32, tcpPacket.header.sequence_number),
+            .acknowledgment_number = std.mem.nativeToBig(u32, tcpPacket.header.acknowledgment_number),
+            .data_offset = tcpPacket.header.data_offset,
+            .flags = tcpPacket.header.flags,
+            .window_size = std.mem.nativeToBig(u16, tcpPacket.header.window_size),
+            .checksum = 0,
+            .urgent_pointer = std.mem.nativeToBig(u16, tcpPacket.header.urgent_pointer),
+        };
+
+        // temporary copy into buffer to calculate checksum
+        var headerBuffer: [TcpHeader.SIZE]u8 = undefined;
+        @memcpy(headerBuffer[0..TcpHeader.SIZE], std.mem.toBytes(raw)[0..TcpHeader.SIZE]);
+        // pseudo header for checksum calculation
+        @memcpy(buffer[i .. i + 4], &std.mem.toBytes(ip_options.source_address));
+        i += 4;
+        @memcpy(buffer[i .. i + 4], &std.mem.toBytes(ip_options.destination_address));
+        i += 4;
+        buffer[i] = 0;
+        buffer[i + 1] = 6;
+        i += 2;
+        buffer[i] = 0;
+        buffer[i + 1] = TcpHeader.SIZE;
+        i += 2;
+        @memcpy(buffer[i .. i + TcpHeader.SIZE], headerBuffer[0..TcpHeader.SIZE]);
+        i += TcpHeader.SIZE;
+        @memcpy(buffer[i .. i + tcpPacket.data.len], tcpPacket.data);
+        i += tcpPacket.data.len;
+
+        const checksum = std.mem.nativeToBig(u16, internetChecksum(buffer[0..i]));
+        raw.checksum = checksum;
+
+        // copy real data into buffer
+        i = 0;
+
+        @memcpy(buffer[i .. i + TcpHeader.SIZE], std.mem.toBytes(raw)[0..TcpHeader.SIZE]);
+        i += TcpHeader.SIZE;
+
+        @memcpy(buffer[i .. i + tcpPacket.data.len], tcpPacket.data);
+        i += tcpPacket.data.len;
 
         return i;
     }

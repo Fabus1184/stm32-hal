@@ -245,7 +245,6 @@ pub fn Nvic(comptime baseAddress: [*]align(4) volatile u8) type {
 
         pub fn enableInterrupt(self: @This(), interrupt: u32) void {
             self.iser[interrupt / 32] |= @as(u32, 1) << @intCast(interrupt % 32);
-            std.log.debug("enabled interrupt {}: {b:0<32}", .{ interrupt, self.iser[interrupt / 32] });
         }
 
         pub fn disableInterrupt(self: @This(), interrupt: u32) void {
@@ -254,7 +253,6 @@ pub fn Nvic(comptime baseAddress: [*]align(4) volatile u8) type {
 
         pub fn setPending(self: @This(), interrupt: u32) void {
             self.ispr[interrupt / 32] |= @as(u32, 1) << @intCast(interrupt % 32);
-            std.log.debug("set pending interrupt {}: {b:0<32}", .{ interrupt, self.ispr[interrupt / 32] });
         }
 
         pub fn clearPending(self: @This(), interrupt: u32) void {

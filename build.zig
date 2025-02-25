@@ -19,7 +19,9 @@ pub fn build(b: *std.Build) void {
         .strip = false,
     });
 
-    const examples = .{ "ethernet", "button" };
+    _ = b.step("run", "flash and run");
+
+    const examples = .{ "ethernet", "button", "usb-host" };
     inline for (examples) |example| {
         const firmware = b.addExecutable(.{
             .name = example ++ ".elf",
@@ -47,7 +49,7 @@ pub fn build(b: *std.Build) void {
         });
         run.has_side_effects = true;
 
-        const runStep = b.step("run-" ++ example, "Run " ++ example);
+        const runStep = b.step(example, "Run " ++ example);
         runStep.dependOn(b.getInstallStep());
         runStep.dependOn(&run.step);
     }

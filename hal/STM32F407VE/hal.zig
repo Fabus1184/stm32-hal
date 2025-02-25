@@ -6,6 +6,7 @@ pub const flash = @import("flash.zig");
 pub const syscfg = @import("syscfg.zig");
 pub const dma = @import("dma.zig");
 pub const exti = @import("exti.zig");
+pub const usb = @import("usb.zig");
 
 pub const gpio = @import("../gpio.zig");
 pub const memory = @import("../memory.zig");
@@ -55,3 +56,5 @@ pub const DMA1 = dma.Dma(@ptrFromInt(0x4002_6000)){};
 pub const DMA2 = dma.Dma(@ptrFromInt(0x4002_6400)){};
 
 pub const EXTI = exti.Exti(@ptrFromInt(0x4001_3C00)){};
+
+pub const USB_FS = usb.OtgFs(@ptrFromInt(0x5000_0000)){};

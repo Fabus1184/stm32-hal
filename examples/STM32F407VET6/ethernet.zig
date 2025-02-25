@@ -3,6 +3,7 @@ const std = @import("std");
 const hal = @import("hal").STM32F407VE;
 
 const inet = @import("internet.zig");
+const tcp = @import("tcp.zig");
 
 pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
     var buffer: [512]u8 = undefined;
@@ -66,10 +67,12 @@ var managedEthernet = hal.managed.ethernet.ManagedEthernet(16, 16, onFrameReceiv
 const MAC_ADDRESS = inet.MacAddress{ .a = 0x68, .b = 0x69, .c = 0x69, .d = 0x69, .e = 0x69, .f = 0x69 };
 const IP_ADDRESS = inet.Ipv4Address{ .a = 10, .b = 69, .c = 69, .d = 123 };
 
+var tcpListener = tcp.TcpListener(4).init(IP_ADDRESS, 1234);
+
 fn onFrameReceived(bytes: []const u8) void {
     const frame = inet.EthernetFrame.fromBigEndianBytes(bytes[0 .. bytes.len - 4]);
 
-    std.log.info("received ethernet frame {x}, payload length {}", .{ std.json.fmt(frame.header, .{}), frame.payload.len });
+    std.log.debug("received ethernet frame {x}, payload length {}", .{ std.json.fmt(frame.header, .{}), frame.payload.len });
 
     switch (frame.header.etherType) {
         // ARP
@@ -117,7 +120,7 @@ fn onFrameReceived(bytes: []const u8) void {
                             const n = inet.IcmpPacket.make(0, 0, icmp.header.rest, icmp.data, &icmpReplyBuffer);
 
                             var ipv4ReplyBuffer: [255]u8 = undefined;
-                            const n2 = inet.Ipv4Packet.make(ipv4.header.source_address, IP_ADDRESS, 0x1, 0xabcd, icmpReplyBuffer[0..n], &ipv4ReplyBuffer);
+                            const n2 = inet.Ipv4Packet.make(ipv4.header.source_address, IP_ADDRESS, .icmp, 0xabcd, icmpReplyBuffer[0..n], &ipv4ReplyBuffer);
 
                             var ethReplyBuffer: [255]u8 = undefined;
                             const n3 = inet.EthernetFrame.make(frame.header.source, MAC_ADDRESS, 0x0800, ipv4ReplyBuffer[0..n2], &ethReplyBuffer);
@@ -127,6 +130,34 @@ fn onFrameReceived(bytes: []const u8) void {
                             };
                         },
                         else => {},
+                    }
+                },
+                .tcp => {
+                    const tcpPacket = inet.TcpPacket.fromBigEndianBytes(ipv4.payload);
+                    std.log.debug("TCP header: {}", .{std.json.fmt(tcpPacket.header, .{})});
+
+                    if (tcpListener.handlePacket(ipv4, tcpPacket) catch |err| {
+                        std.log.err("failed to handle TCP packet: {}", .{err});
+                        @panic("failed to handle TCP packet");
+                    }) |tcpReturnPacket| {
+                        var tcpReturnBuffer: [255]u8 = undefined;
+                        const n = inet.TcpPacket.make(
+                            tcpReturnPacket,
+                            .{
+                                .source_address = IP_ADDRESS,
+                                .destination_address = ipv4.header.source_address,
+                            },
+                            &tcpReturnBuffer,
+                        );
+                        var ipv4ReplyBuffer: [255]u8 = undefined;
+                        const n2 = inet.Ipv4Packet.make(ipv4.header.source_address, IP_ADDRESS, .tcp, 0xabcd, tcpReturnBuffer[0..n], &ipv4ReplyBuffer);
+
+                        var ethReplyBuffer: [255]u8 = undefined;
+                        const n3 = inet.EthernetFrame.make(frame.header.source, MAC_ADDRESS, 0x0800, ipv4ReplyBuffer[0..n2], &ethReplyBuffer);
+
+                        managedEthernet.transmitFrame(ethReplyBuffer[0..n3]) catch {
+                            @panic("failed to send TCP reply");
+                        };
                     }
                 },
                 else => {},
