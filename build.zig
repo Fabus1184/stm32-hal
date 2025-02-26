@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) void {
 
     _ = b.step("run", "flash and run");
 
-    const examples = .{ "ethernet", "button", "usb-host" };
+    const examples = .{ "ethernet", "button", "usb-host", "usart-rx" };
     inline for (examples) |example| {
         const firmware = b.addExecutable(.{
             .name = example ++ ".elf",

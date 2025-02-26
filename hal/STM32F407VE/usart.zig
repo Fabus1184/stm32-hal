@@ -155,22 +155,28 @@ pub fn Usart(comptime baseAddress: [*]align(4) volatile u8) type {
             self.cr1.modify(.{
                 .ue = true,
                 .te = true,
+                .re = true,
             });
-        }
-
-        pub fn send(self: @This(), bytes: []const u8) void {
-            if (self.cr1.load().ue) {
-                for (bytes) |byte| {
-                    while (self.sr.load().txe == 0) {}
-                    self.dr.modify(.{ .data = byte });
-                }
-
-                while (self.sr.load().tc == 0) {}
-            }
         }
 
         pub fn deinit(self: @This()) void {
             self.cr1.modify(.{ .ue = false });
+        }
+
+        pub fn send(self: @This(), bytes: []const u8) void {
+            for (bytes) |byte| {
+                while (self.sr.load().txe == 0) {}
+                self.dr.modify(.{ .data = byte });
+            }
+
+            while (self.sr.load().tc == 0) {}
+        }
+
+        pub fn receive(self: @This(), buffer: []u8) void {
+            for (buffer) |*byte| {
+                while (self.sr.load().rxne == 0) {}
+                byte.* = self.dr.load().data;
+            }
         }
     };
 }
