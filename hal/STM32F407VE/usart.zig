@@ -56,8 +56,8 @@ const ControlRegister1 = packed struct(u32) {
     },
     /// Word length
     m: enum(u1) {
-        @"8N1" = 0,
-        @"9N1" = 1,
+        eight = 0,
+        nine = 1,
     },
     /// USART enable
     ue: bool,
@@ -88,10 +88,10 @@ const ControlRegister2 = packed struct(u32) {
     clken: u1,
     /// STOP bits
     stop: enum(u2) {
-        @"1" = 0,
-        @"0.5" = 1,
-        @"2" = 2,
-        @"1.5" = 3,
+        one = 0b00,
+        half = 0b01,
+        two = 0b10,
+        oneAndHalf = 0b11,
     },
     /// LIN mode enable
     linen: u1,
@@ -143,7 +143,15 @@ pub fn Usart(comptime baseAddress: [*]align(4) volatile u8) type {
             _0: u16,
         }) = .{ .ptr = @ptrCast(&baseAddress[0x18]) },
 
-        pub fn init(self: @This(), apb2clock: u32, baudrate: u32) void {
+        pub fn init(
+            self: @This(),
+            apb2clock: u32,
+            baudrate: u32,
+            wordLength: @TypeOf(self.cr1.load().m),
+            stopBits: @TypeOf(self.cr2.load().stop),
+        ) void {
+            self.cr1.modify(.{ .ue = true });
+
             if (self.cr1.load().over8 == .@"8") {
                 @panic("Oversampling mode 8 is not supported");
             }
@@ -152,15 +160,12 @@ pub fn Usart(comptime baseAddress: [*]align(4) volatile u8) type {
                 .mantissa = @as(u16, @intCast((apb2clock + (baudrate / 2)) / baudrate)),
             });
 
-            self.cr1.modify(.{
-                .ue = true,
-                .te = true,
-                .re = true,
-            });
+            self.cr2.modify(.{ .stop = stopBits });
+            self.cr1.modify(.{ .te = true, .re = true, .m = wordLength });
         }
 
         pub fn deinit(self: @This()) void {
-            self.cr1.modify(.{ .ue = false });
+            self.cr1.modify(.{ .ue = false, .te = false, .re = false });
         }
 
         pub fn send(self: @This(), bytes: []const u8) void {
@@ -172,10 +177,25 @@ pub fn Usart(comptime baseAddress: [*]align(4) volatile u8) type {
             while (self.sr.load().tc == 0) {}
         }
 
-        pub fn receive(self: @This(), buffer: []u8) void {
+        pub fn checkError(self: @This()) !void {
+            if (self.sr.load().pe == 1) {
+                return error.Parity;
+            } else if (self.sr.load().fe == 1) {
+                return error.Frame;
+            } else if (self.sr.load().nf == 1) {
+                return error.Noise;
+            } else if (self.sr.load().ore == 1) {
+                return error.Overrun;
+            }
+        }
+
+        pub fn receive(self: @This(), buffer: []u8) !void {
+            try self.checkError();
+
             for (buffer) |*byte| {
                 while (self.sr.load().rxne == 0) {}
                 byte.* = self.dr.load().data;
+                try self.checkError();
             }
         }
     };

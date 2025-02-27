@@ -205,7 +205,7 @@ export fn main() noreturn {
 
     const BAUDRATE = 115_200;
 
-    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE);
+    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE, .eight, .one);
 
     // configure systick to tick every 1s
     hal.core.SYSTICK.rvr.value = std.math.maxInt(u24);
@@ -240,7 +240,7 @@ export fn main() noreturn {
     hal.RCC.cfgr.ppre2 = .div2;
 
     hal.USART3.deinit();
-    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE);
+    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE, .eight, .one);
 
     std.log.debug("switched to PLL", .{});
     std.log.debug("clocks: {}", .{hal.RCC.clocks()});

@@ -82,7 +82,7 @@ export fn main() noreturn {
 
     const BAUDRATE = 115_200;
     hal.GPIOA.setupOutputPin(5, .PushPull, .Medium);
-    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE);
+    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE, .eight, .one);
 
     std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 

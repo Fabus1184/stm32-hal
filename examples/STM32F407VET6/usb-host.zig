@@ -66,7 +66,7 @@ export fn main() noreturn {
     hal.GPIOD.setMode(UART_TX, .AlternateFunction);
     hal.GPIOA.setupOutputPin(5, .PushPull, .Medium);
 
-    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE);
+    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE, .eight, .one);
 
     hal.RCC.cr.hseOn = true;
     std.log.debug("waiting for HSE to stabilize", .{});
@@ -89,7 +89,7 @@ export fn main() noreturn {
     hal.RCC.cfgr.ppre2 = .div2;
 
     hal.USART3.deinit();
-    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE);
+    hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE, .eight, .one);
 
     std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 
