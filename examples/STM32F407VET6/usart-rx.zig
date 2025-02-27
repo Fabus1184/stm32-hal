@@ -141,7 +141,7 @@ export fn main() noreturn {
             if (status.tcif) {
                 //hal.USART1.cr3.modify(.{ .dmar = 0 });
                 const buffer = if (hal.DMA2.streams[5].scr.load().ct) buffer2 else buffer1;
-                var it = std.mem.split(u8, &buffer, "\n");
+                var it = std.mem.split(u8, &buffer, "\r\n");
                 while (it.next()) |line| {
                     std.log.info("received: {s}", .{line});
                 }
