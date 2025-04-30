@@ -39,7 +39,7 @@ pub fn Rcc(comptime baseAddress: [*]volatile u32) type {
             ______: u9,
         } = @ptrCast(&baseAddress[5]),
         /// APB2 peripheral clock enable register
-        apb2enr: *volatile packed struct(u32) { syscfgcompen: bool, _: u4, usart6en: bool, __: u3, adcen: bool, ___: u1, time1en: bool, spi1en: bool, ____: u1, usart1en: bool, _____: u1, tim15en: bool, tim16en: bool, tim17en: bool, ______: u3, dbgmcuen: bool, _______: u9 } = @ptrCast(&baseAddress[6]),
+        apb2enr: *volatile packed struct(u32) { syscfgen: bool, _: u4, usart6en: bool, __: u3, adcen: bool, ___: u1, time1en: bool, spi1en: bool, ____: u1, usart1en: bool, _____: u1, tim15en: bool, tim16en: bool, tim17en: bool, ______: u3, dbgmcuen: bool, _______: u9 } = @ptrCast(&baseAddress[6]),
         /// APB1 peripheral clock enable register
         apb1enr: *volatile packed struct(u32) { _: u1, tim3en: bool, __: u2, tim6en: bool, tim7en: bool, ___: u2, tim14en: bool, ____: u2, wwdgen: bool, _____: u2, spi2en: bool, ______: u2, usart2en: bool, usart3en: bool, usart4en: bool, usart5en: bool, i2c1en: bool, i2c2en: bool, usb: bool, _______: u4, pwren: bool, ________: u3 } = @ptrCast(&baseAddress[7]),
         /// RTC domain control register

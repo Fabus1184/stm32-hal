@@ -2,13 +2,14 @@ const std = @import("std");
 
 const hal = @import("hal").STM32F407VE;
 
-pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
-    var _buf1: [512]u8 = undefined;
-    const result = std.fmt.bufPrint(&_buf1, format, args) catch {
-        std.log.err("failed to format log message", .{});
-        return;
-    };
+const USART3_WRITER = std.io.Writer(void, error{}, struct {
+    fn write(_: void, bytes: []const u8) error{}!usize {
+        hal.USART3.send(bytes);
+        return bytes.len;
+    }
+}.write){ .context = {} };
 
+pub fn log(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
     const colors = std.EnumMap(std.log.Level, []const u8).init(.{
         .debug = "\x1b[36m",
         .info = "\x1b[32m",
@@ -17,19 +18,24 @@ pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), c
     });
     const reset = "\x1b[0m";
 
-    var _buf2: [512]u8 = undefined;
-    const result2 = std.fmt.bufPrint(&_buf2, "{s}[{s}]{s}: {s}{s}\n", .{
+    std.fmt.format(USART3_WRITER, "{s}[{s}]{s}:", .{
         colors.getAssertContains(level),
         @tagName(level),
         if (scope == .default) "" else " (" ++ @tagName(scope) ++ ")",
-        result,
-        reset,
-    }) catch {
-        std.log.err("failed to format log message 2", .{});
+    }) catch |err| {
+        std.log.err("failed to format log message: {}", .{err});
         return;
     };
 
-    hal.USART3.send(result2);
+    std.fmt.format(USART3_WRITER, format, args) catch |err| {
+        std.log.err("failed to format log message: {}", .{err});
+        return;
+    };
+
+    std.fmt.format(USART3_WRITER, "{s}\n", .{reset}) catch |err| {
+        std.log.err("failed to format log message: {}", .{err});
+        return;
+    };
 }
 
 pub const std_options: std.Options = .{
@@ -42,12 +48,12 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_
     @trap();
 }
 
-const LED1 = 13;
-const LED2 = 14;
-const LED3 = 15;
+var LED1: hal.gpio.OutputPin = undefined;
+var LED2: hal.gpio.OutputPin = undefined;
+var LED3: hal.gpio.OutputPin = undefined;
 
-var buffer1: [512]u8 = undefined;
-var buffer2: [512]u8 = undefined;
+var buffer1: [255]u8 = undefined;
+var buffer2: [255]u8 = undefined;
 
 export fn main() noreturn {
     hal.memory.initializeMemory();
@@ -60,13 +66,9 @@ export fn main() noreturn {
     hal.RCC.apb2enr.syscfgEn = true;
 
     hal.RCC.apb1enr.usart3En = true;
-    const UART_TX = 8;
-    hal.GPIOD.setAlternateFunction(UART_TX, .AF7);
-    hal.GPIOD.setOutputType(UART_TX, .PushPull);
-    hal.GPIOD.setPullMode(UART_TX, .PullUp);
-    hal.GPIOD.setOutputSpeed(UART_TX, .High);
-    hal.GPIOD.setMode(UART_TX, .AlternateFunction);
-    hal.GPIOA.setupOutputPin(5, .PushPull, .Medium);
+
+    _ = hal.GPIOD.setupOutput(8, .{ .alternateFunction = .AF7, .outputSpeed = .High });
+    _ = hal.GPIOA.setupOutput(5, .{});
 
     const BAUDRATE = 115_200;
     hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE, .eight, .one);
@@ -96,11 +98,6 @@ export fn main() noreturn {
 
     std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 
-    inline for (.{ LED1, LED2, LED3 }) |l| {
-        hal.GPIOE.setupOutputPin(l, .PushPull, .Medium);
-        hal.GPIOE.setLevel(l, 1);
-    }
-
     // configure systick
     hal.core.SYSTICK.rvr.value = std.math.maxInt(u24);
     hal.core.SYSTICK.cvr.value = 0;
@@ -108,11 +105,7 @@ export fn main() noreturn {
     hal.core.SYSTICK.csr.clksource = 1;
     hal.core.SoftExceptionHandler.put(.SysTick, struct {
         fn int() void {
-            const a = struct {
-                var on: u1 = 1;
-            };
-            a.on ^= 1;
-            hal.GPIOE.setLevel(LED3, a.on);
+            LED3.toggleLevel();
 
             _ = hal.core.SYSTICK.csr.*;
         }
@@ -123,31 +116,25 @@ export fn main() noreturn {
     hal.RCC.ahb1enr.dma2En = true;
     hal.RCC.apb2enr.usart1En = true;
     const UART_RX = 7;
-    hal.GPIOB.setPullMode(UART_RX, .NoPull);
-    hal.GPIOB.setAlternateFunction(UART_RX, .AF7);
-    hal.GPIOB.setMode(UART_RX, .AlternateFunction);
+    _ = hal.GPIOB.setupInput(UART_RX, .{ .alternateFunction = .AF7, .pullMode = .NoPull });
 
     hal.core.SoftExceptionHandler.put(.IRQ68, struct {
         fn int() void {
             hal.NVIC.clearPending(68);
 
             const status = hal.DMA2.ackChannelInterrupts(5);
-            std.log.debug("dma interrupt: {}", .{std.json.fmt(status, .{})});
 
             if (status.teif) {
                 @panic("DMA transfer error");
             }
 
             if (status.tcif) {
-                //hal.USART1.cr3.modify(.{ .dmar = 0 });
-                const buffer = if (hal.DMA2.streams[5].scr.load().ct) buffer2 else buffer1;
-                var it = std.mem.split(u8, &buffer, "\r\n");
-                while (it.next()) |line| {
-                    std.log.info("received: {s}", .{line});
-                }
+                var buffer = if (hal.DMA2.streams[5].scr.load().ct) buffer2 else buffer1;
 
-                //hal.DMA2.setupStream(5, 4, hal.USART1.dr.ptr, dest[0..].ptr, .peripheralToMemory, dest.len);
-                //hal.USART1.cr3.modify(.{ .dmar = 1 });
+                var lines = std.mem.splitSequence(u8, &buffer, "\r\n");
+                while (lines.next()) |line| {
+                    std.log.info("{s}", .{line});
+                }
             }
         }
     }.int);
@@ -169,7 +156,7 @@ export fn main() noreturn {
             .circ = false,
             .pinc = false,
             .minc = true,
-            .psize = .word,
+            .psize = .byte,
             .msize = .byte,
             .pincos = false,
             .pl = .low,
@@ -193,7 +180,6 @@ export fn main() noreturn {
     }
 
     while (true) {
-        asm volatile ("wfi");
         hal.USART1.checkError() catch |err| {
             std.log.err("USART1 error: {}", .{err});
         };

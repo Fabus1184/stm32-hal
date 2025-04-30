@@ -5,7 +5,7 @@ const hal = @import("hal").STM32F407VE;
 const inet = @import("internet.zig");
 const tcp = @import("tcp.zig");
 
-pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
+pub fn log(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
     var buffer: [512]u8 = undefined;
     const result = std.fmt.bufPrint(&buffer, format, args) catch {
         std.log.err("failed to format log message", .{});
@@ -45,21 +45,14 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_
     @trap();
 }
 
-const LED1 = 13;
-const LED2 = 14;
-const LED3 = 15;
+var LED1: hal.gpio.OutputPin = undefined;
+var LED2: hal.gpio.OutputPin = undefined;
+var LED3: hal.gpio.OutputPin = undefined;
 
 fn systickInterrupt() void {
     _ = hal.core.SYSTICK.csr.*;
 
-    hal.GPIOE.setLevel(LED3, ~hal.GPIOE.getLevel(LED3));
-
-    const a = struct {
-        var on: u1 = 1;
-    };
-
-    hal.GPIOA.setLevel(5, a.on);
-    a.on ^= 1;
+    LED3.toggleLevel();
 }
 
 var managedEthernet = hal.managed.ethernet.ManagedEthernet(16, 16, onFrameReceived){};
@@ -190,18 +183,13 @@ export fn main() noreturn {
     hal.RCC.ahb1enr.dma2En = true;
 
     // configure GPIOA B10 as USART3 TX
-    const UART_TX = 8;
-    hal.GPIOD.setAlternateFunction(UART_TX, .AF7);
-    hal.GPIOD.setOutputType(UART_TX, .PushPull);
-    hal.GPIOD.setPullMode(UART_TX, .PullUp);
-    hal.GPIOD.setOutputSpeed(UART_TX, .High);
-    hal.GPIOD.setMode(UART_TX, .AlternateFunction);
+    _ = hal.GPIOD.setupOutput(8, .{ .alternateFunction = .AF7, .outputSpeed = .High });
 
-    inline for (.{ LED1, LED2, LED3 }) |l| {
-        hal.GPIOE.setupOutputPin(l, .PushPull, .Medium);
-    }
+    LED1 = hal.GPIOA.setupOutput(13, .{ .outputSpeed = .High });
+    LED2 = hal.GPIOA.setupOutput(14, .{ .outputSpeed = .High });
+    LED3 = hal.GPIOA.setupOutput(15, .{ .outputSpeed = .High });
 
-    hal.GPIOA.setupOutputPin(5, .PushPull, .Medium);
+    _ = hal.GPIOA.setupOutput(5, .{});
 
     const BAUDRATE = 115_200;
 
@@ -268,35 +256,36 @@ export fn main() noreturn {
 }
 
 fn setupEth(macAddress: u48) void {
-    const ETH_RMII_MDC = .{ hal.GPIOC, 1 };
-    const ETH_RMII_RXD0 = .{ hal.GPIOC, 4 };
-    const ETH_RMII_RXD1 = .{ hal.GPIOC, 5 };
+    // TODO: rewrite pin setup
+    //const ETH_RMII_MDC = .{ hal.GPIOC, 1 };
+    //const ETH_RMII_RXD0 = .{ hal.GPIOC, 4 };
+    //const ETH_RMII_RXD1 = .{ hal.GPIOC, 5 };
+    //
+    //const ETH_RMII_RX_CLK = .{ hal.GPIOA, 1 };
+    //const ETH_RMII_MDIO = .{ hal.GPIOA, 2 };
+    //const ETH_RMII_CRX_DV = .{ hal.GPIOA, 7 };
+    //
+    //const ETH_RMII_TXEN = .{ hal.GPIOB, 11 };
+    //const ETH_RMII_TXD0 = .{ hal.GPIOB, 12 };
+    //const ETH_RMII_TXD1 = .{ hal.GPIOB, 13 };
 
-    const ETH_RMII_RX_CLK = .{ hal.GPIOA, 1 };
-    const ETH_RMII_MDIO = .{ hal.GPIOA, 2 };
-    const ETH_RMII_CRX_DV = .{ hal.GPIOA, 7 };
-
-    const ETH_RMII_TXEN = .{ hal.GPIOB, 11 };
-    const ETH_RMII_TXD0 = .{ hal.GPIOB, 12 };
-    const ETH_RMII_TXD1 = .{ hal.GPIOB, 13 };
-
-    inline for (.{
-        ETH_RMII_MDC,
-        ETH_RMII_RX_CLK,
-        ETH_RMII_MDIO,
-        ETH_RMII_CRX_DV,
-        ETH_RMII_RXD0,
-        ETH_RMII_RXD1,
-        ETH_RMII_TXEN,
-        ETH_RMII_TXD0,
-        ETH_RMII_TXD1,
-    }) |pin| {
-        pin[0].setAlternateFunction(pin[1], .AF11);
-        pin[0].setOutputType(pin[1], .PushPull);
-        pin[0].setPullMode(pin[1], .NoPull);
-        pin[0].setOutputSpeed(pin[1], .VeryHigh);
-        pin[0].setMode(pin[1], .AlternateFunction);
-    }
+    //inline for (.{
+    //    ETH_RMII_MDC,
+    //    ETH_RMII_RX_CLK,
+    //    ETH_RMII_MDIO,
+    //    ETH_RMII_CRX_DV,
+    //    ETH_RMII_RXD0,
+    //    ETH_RMII_RXD1,
+    //    ETH_RMII_TXEN,
+    //    ETH_RMII_TXD0,
+    //    ETH_RMII_TXD1,
+    //}) |pin| {
+    //    pin[0].setAlternateFunction(pin[1], .AF11);
+    //    pin[0].setOutputType(pin[1], .PushPull);
+    //    pin[0].setPullMode(pin[1], .NoPull);
+    //    pin[0].setOutputSpeed(pin[1], .VeryHigh);
+    //    pin[0].setMode(pin[1], .AlternateFunction);
+    //}
 
     hal.RCC.ahb1enr.ethMacEn = true;
     hal.RCC.ahb1enr.ethMacTxEn = true;

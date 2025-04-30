@@ -1,19 +1,21 @@
 const std = @import("std");
 
+const Register = @import("../register.zig").Register;
+
 /// Universal Synchronous Asynchronous Receiver Transmitter
 pub fn Usart(comptime baseAddress: [*]volatile u32) type {
     return struct {
-        controlRegister1: *volatile Cr1 = @ptrCast(&baseAddress[0]),
-        controlRegister2: *volatile Cr2 = @ptrCast(&baseAddress[1]),
-        controlRegister3: *volatile Cr3 = @ptrCast(&baseAddress[2]),
-        baudRateRegister: *volatile u16 = @ptrCast(&baseAddress[3]),
+        controlRegister1: Register(Cr1) = .{ .ptr = @ptrCast(&baseAddress[0]) },
+        controlRegister2: Register(Cr2) = .{ .ptr = @ptrCast(&baseAddress[1]) },
+        controlRegister3: Register(Cr3) = .{ .ptr = @ptrCast(&baseAddress[2]) },
+        baudRateRegister: Register(packed struct(u32) { baudrate: u16, _: u16 }) = .{ .ptr = @ptrCast(&baseAddress[3]) },
 
         receiveTimeoutRegister: *volatile u32 = @ptrCast(&baseAddress[5]),
-        receiveQueueRegister: *volatile Rqr = @ptrCast(&baseAddress[6]),
-        interruptStatusRegister: *volatile Isr = @ptrCast(&baseAddress[7]),
-        interruptControlRegister: *volatile Icr = @ptrCast(&baseAddress[8]),
-        rxDataRegister: *volatile u9 = @ptrCast(&baseAddress[9]),
-        txDataRegister: *volatile u9 = @ptrCast(&baseAddress[10]),
+        receiveQueueRegister: Register(Rqr) = .{ .ptr = @ptrCast(&baseAddress[6]) },
+        interruptStatusRegister: Register(Isr) = .{ .ptr = @ptrCast(&baseAddress[7]) },
+        interruptControlRegister: Register(Icr) = .{ .ptr = @ptrCast(&baseAddress[8]) },
+        rxDataRegister: Register(packed struct(u32) { value: u9, _: u23 }) = .{ .ptr = @ptrCast(&baseAddress[9]) },
+        txDataRegister: Register(packed struct(u32) { value: u9, _: u23 }) = .{ .ptr = @ptrCast(&baseAddress[10]) },
 
         const Cr1 = packed struct(u32) { uartEnable: u1 = 0, _: u1 = 0, receiverEnable: u1 = 0, transmitterEnable: u1 = 0, idleie: u1 = 0, rxneie: u1 = 0, tcie: u1 = 0, txeie: u1 = 0, peie: u1 = 0, ps: u1 = 0, pce: u1 = 0, wake: u1 = 0, m0: u1 = 0, mme: u1 = 0, cmie: u1 = 0, over8: u1 = 0, dedt: u5 = 0, deat: u5 = 0, rtoie: u1 = 0, __: u1 = 0, m1: u1 = 0, ___: u3 = 0 };
         const Cr2 = packed struct(u32) { _: u4 = 0, addm7: u1 = 0, __: u3 = 0, lbcl: u1 = 0, cpha: u1 = 0, cpol: u1 = 0, clken: u1 = 0, stop: u2 = 0, ___: u1 = 0, swap: u1 = 0, rxinv: u1 = 0, txinv: u1 = 0, datainv: u1 = 0, msbfirst: u1 = 0, abren: u1 = 0, abrmod: u2 = 0, rtoen: u1 = 0, add: u8 = 0 };
@@ -23,17 +25,17 @@ pub fn Usart(comptime baseAddress: [*]volatile u32) type {
         const Icr = packed struct(u32) { pecf: u1 = 0, fecf: u1 = 0, ncf: u1 = 0, orecf: u1 = 0, idlecf: u1 = 0, _: u1 = 0, tccf: u1 = 0, __: u2 = 0, ctscf: u1 = 0, ___: u1 = 0, rtocf: u1 = 0, ____: u5 = 0, cmcf: u1 = 0, _____: u14 = 0 };
 
         pub fn init(self: @This(), baudrate: u32) void {
-            self.baudRateRegister.* = @intCast(48_000_000 / (6 * baudrate));
-            self.controlRegister1.* = .{ .transmitterEnable = 1, .uartEnable = 1 };
+            self.baudRateRegister.modify(.{ .baudrate = @as(u16, @intCast(48_000_000 / (6 * baudrate))) });
+            self.controlRegister1.modify(.{ .transmitterEnable = 1, .uartEnable = 1 });
         }
 
         pub fn send(self: @This(), bytes: []const u8) void {
             for (bytes) |byte| {
-                while (self.interruptStatusRegister.transmitEmpty == 0) {}
-                self.txDataRegister.* = byte;
+                while (self.interruptStatusRegister.load().transmitEmpty == 0) {}
+                self.txDataRegister.modify(.{ .value = byte });
             }
 
-            while (self.interruptStatusRegister.transmissionComplete == 0) {}
+            while (self.interruptStatusRegister.load().transmissionComplete == 0) {}
         }
     };
 }

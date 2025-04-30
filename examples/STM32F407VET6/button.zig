@@ -2,7 +2,7 @@ const std = @import("std");
 
 const hal = @import("hal").STM32F407VE;
 
-pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
+pub fn log(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
     var buffer: [512]u8 = undefined;
     const result = std.fmt.bufPrint(&buffer, format, args) catch {
         std.log.err("failed to format log message", .{});
@@ -42,25 +42,22 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_
     @trap();
 }
 
-const LED1 = 13;
-const LED2 = 14;
-const LED3 = 15;
+var LED1: hal.gpio.OutputPin = undefined;
+var LED2: hal.gpio.OutputPin = undefined;
+var LED3: hal.gpio.OutputPin = undefined;
 
-const BUTTON1 = 10;
-const BUTTON2 = 11;
-const BUTTON3 = 12;
+var BUTTON1: hal.gpio.InputPin = undefined;
+var BUTTON2: hal.gpio.InputPin = undefined;
+var BUTTON3: hal.gpio.InputPin = undefined;
 
 fn extIrqHandler() void {
     hal.EXTI.clearPending(10);
     std.log.debug("external interrupt", .{});
 
-    const l1 = hal.GPIOE.getLevel(BUTTON1);
-    const l2 = hal.GPIOE.getLevel(BUTTON2);
-    const l3 = hal.GPIOE.getLevel(BUTTON3);
-
-    hal.GPIOE.setLevel(LED1, l1);
-    hal.GPIOE.setLevel(LED2, l2);
-    hal.GPIOE.setLevel(LED3, l3);
+    LED1.setLevel(BUTTON1.getLevel());
+    LED2.setLevel(BUTTON2.getLevel());
+    LED3.setLevel(BUTTON3.getLevel());
+    std.log.debug("LED1: {}, LED2: {}, LED3: {}", .{ BUTTON1.getLevel(), BUTTON2.getLevel(), BUTTON3.getLevel() });
 }
 
 export fn main() noreturn {
@@ -73,15 +70,11 @@ export fn main() noreturn {
     hal.RCC.apb2enr.syscfgEn = true;
 
     // configure GPIOA B10 as USART3 TX
-    const UART_TX = 8;
-    hal.GPIOD.setAlternateFunction(UART_TX, .AF7);
-    hal.GPIOD.setOutputType(UART_TX, .PushPull);
-    hal.GPIOD.setPullMode(UART_TX, .PullUp);
-    hal.GPIOD.setOutputSpeed(UART_TX, .High);
-    hal.GPIOD.setMode(UART_TX, .AlternateFunction);
+    _ = hal.GPIOD.setupOutput(8, .{ .alternateFunction = .AF7, .outputSpeed = .VeryHigh });
 
     const BAUDRATE = 115_200;
-    hal.GPIOA.setupOutputPin(5, .PushPull, .Medium);
+    _ = hal.GPIOA.setupOutput(5, .{});
+
     hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE, .eight, .one);
 
     std.log.debug("clocks: {}", .{hal.RCC.clocks()});
@@ -95,16 +88,15 @@ export fn main() noreturn {
     hal.SYSCFG.exticr4.exti12 = .E;
     hal.EXTI.configureLineInterrupt(12, .bothEdges);
 
-    hal.NVIC.enableInterrupt(40);
+    hal.core.cortex.NVIC.enableInterrupt(40);
 
-    inline for (.{ LED1, LED2, LED3 }) |l| {
-        hal.GPIOE.setupOutputPin(l, .PushPull, .Medium);
-        hal.GPIOE.setLevel(l, 1);
-    }
+    LED1 = hal.GPIOE.setupOutput(10, .{});
+    LED2 = hal.GPIOE.setupOutput(11, .{});
+    LED3 = hal.GPIOE.setupOutput(12, .{});
 
-    inline for (.{ BUTTON1, BUTTON2, BUTTON3 }) |b| {
-        hal.GPIOE.setupInputPin(b, .PullUp);
-    }
+    BUTTON1 = hal.GPIOE.setupInput(10, .{ .pullMode = .PullUp });
+    BUTTON2 = hal.GPIOE.setupInput(11, .{ .pullMode = .PullUp });
+    BUTTON3 = hal.GPIOE.setupInput(12, .{ .pullMode = .PullUp });
 
     while (true) {
         asm volatile ("wfi");

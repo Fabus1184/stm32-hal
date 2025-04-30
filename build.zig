@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{ .default_target = .{
+    const cortex_m4 = b.resolveTargetQuery(.{
         .cpu_arch = .thumb,
         .os_tag = .freestanding,
         .cpu_model = .{ .explicit = &std.Target.Cpu.Model{
@@ -9,48 +9,60 @@ pub fn build(b: *std.Build) void {
             .features = std.Target.Cpu.Feature.Set.empty,
             .llvm_name = "cortex-m4",
         } },
-    } });
-    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
-
-    const hal = b.createModule(.{
-        .root_source_file = b.path("hal/hal.zig"),
-        .optimize = optimize,
-        .target = target,
-        .strip = false,
     });
 
+    const cortex_m0 = b.resolveTargetQuery(.{
+        .cpu_arch = .thumb,
+        .os_tag = .freestanding,
+        .cpu_model = .{ .explicit = &std.Target.Cpu.Model{
+            .name = "cortex_m0",
+            .features = std.Target.Cpu.Feature.Set.empty,
+            .llvm_name = "cortex-m0",
+        } },
+    });
+
+    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
     _ = b.step("run", "flash and run");
 
-    const examples = .{ "ethernet", "button", "usb-host", "usart-rx" };
-    inline for (examples) |example| {
-        const firmware = b.addExecutable(.{
-            .name = example ++ ".elf",
-            .root_source_file = b.path("examples/STM32F407VET6/" ++ example ++ ".zig"),
+    const examples = .{ .{ "STM32F030F4", .{"w5500"}, cortex_m0 }, .{ "STM32F407VET6", .{ "ethernet", "button", "usb-host", "usart-rx" }, cortex_m4 } };
+    inline for (examples) |entry| {
+        const hal = b.createModule(.{
+            .root_source_file = b.path("hal/hal.zig"),
             .optimize = optimize,
-            .target = target,
+            .target = entry[2],
             .strip = false,
         });
-        firmware.entry = .disabled;
 
-        firmware.root_module.addImport("hal", hal);
+        inline for (entry[1]) |example| {
+            const firmware = b.addExecutable(.{
+                .name = example ++ ".elf",
+                .root_source_file = b.path("examples/" ++ entry[0] ++ "/" ++ example ++ ".zig"),
+                .optimize = optimize,
+                .target = entry[2],
+                .strip = false,
+            });
+            firmware.entry = .disabled;
 
-        firmware.setLinkerScript(b.path("STM32F407VET6.ld"));
+            firmware.root_module.addImport("hal", hal);
 
-        b.installArtifact(firmware);
+            firmware.setLinkerScript(b.path(entry[0] ++ ".ld"));
 
-        const run = b.addSystemCommand(&.{
-            "/opt/stm32cubeprog/bin/STM32_Programmer_CLI",
-            "-c",
-            "port=SWD",
-            "-w",
-            "zig-out/bin/" ++ example ++ ".elf",
-            "0x08000000",
-            "-rst",
-        });
-        run.has_side_effects = true;
+            b.installArtifact(firmware);
 
-        const runStep = b.step(example, "Run " ++ example);
-        runStep.dependOn(b.getInstallStep());
-        runStep.dependOn(&run.step);
+            const run = b.addSystemCommand(&.{
+                "/opt/stm32cubeprog/bin/STM32_Programmer_CLI",
+                "-c",
+                "port=SWD",
+                "-w",
+                "zig-out/bin/" ++ example ++ ".elf",
+                "0x08000000",
+                "-rst",
+            });
+            run.has_side_effects = true;
+
+            const runStep = b.step(example, "Run " ++ example);
+            runStep.dependOn(b.getInstallStep());
+            runStep.dependOn(&run.step);
+        }
     }
 }

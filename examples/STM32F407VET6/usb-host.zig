@@ -2,7 +2,7 @@ const std = @import("std");
 
 const hal = @import("hal").STM32F407VE;
 
-pub fn log(comptime level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
+pub fn log(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
     var buffer: [512]u8 = undefined;
     const result = std.fmt.bufPrint(&buffer, format, args) catch {
         std.log.err("failed to format log message", .{});
@@ -42,11 +42,11 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_
     @trap();
 }
 
-const LED1 = 13;
-const LED2 = 14;
-const LED3 = 15;
-
 const BAUDRATE = 115_200;
+
+var LED1: hal.gpio.OutputPin = undefined;
+var LED2: hal.gpio.OutputPin = undefined;
+var LED3: hal.gpio.OutputPin = undefined;
 
 export fn main() noreturn {
     hal.memory.initializeMemory();
@@ -58,13 +58,8 @@ export fn main() noreturn {
     hal.RCC.apb2enr.syscfgEn = true;
     hal.RCC.ahb2enr.otgFsEn = true;
 
-    const UART_TX = 8;
-    hal.GPIOD.setAlternateFunction(UART_TX, .AF7);
-    hal.GPIOD.setOutputType(UART_TX, .PushPull);
-    hal.GPIOD.setPullMode(UART_TX, .PullUp);
-    hal.GPIOD.setOutputSpeed(UART_TX, .High);
-    hal.GPIOD.setMode(UART_TX, .AlternateFunction);
-    hal.GPIOA.setupOutputPin(5, .PushPull, .Medium);
+    _ = hal.GPIOD.setupOutput(8, .{ .alternateFunction = .AF7, .outputSpeed = .VeryHigh });
+    _ = hal.GPIOA.setupOutput(5, .{});
 
     hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE, .eight, .one);
 
@@ -93,10 +88,13 @@ export fn main() noreturn {
 
     std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 
-    inline for (.{ LED1, LED2, LED3 }) |l| {
-        hal.GPIOE.setupOutputPin(l, .PushPull, .Medium);
-        hal.GPIOE.setLevel(l, 1);
-    }
+    LED1 = hal.GPIOE.setupOutput(13, .{});
+    LED2 = hal.GPIOE.setupOutput(14, .{});
+    LED3 = hal.GPIOE.setupOutput(15, .{});
+
+    LED1.setLevel(1);
+    LED2.setLevel(1);
+    LED3.setLevel(1);
 
     // configure systick
     hal.core.SYSTICK.rvr.value = std.math.maxInt(u24);
@@ -105,11 +103,7 @@ export fn main() noreturn {
     hal.core.SYSTICK.csr.clksource = 1;
     hal.core.SoftExceptionHandler.put(.SysTick, struct {
         fn int() void {
-            const a = struct {
-                var on: u1 = 1;
-            };
-            a.on ^= 1;
-            hal.GPIOE.setLevel(LED3, a.on);
+            LED3.toggleLevel();
 
             _ = hal.core.SYSTICK.csr.*;
         }
@@ -118,16 +112,18 @@ export fn main() noreturn {
 
     // set up USB pins
     // PA8: OTG_FS_SOF
-    hal.GPIOA.setupOutputPin(8, .PushPull, .Medium);
-    hal.GPIOA.setAlternateFunction(8, .AF10);
+    _ = hal.GPIOA.setupOutput(8, .{ .alternateFunction = .AF10 });
     // PA9: OTG_FS_VBUS
-    hal.GPIOA.setupInputPin(9, .NoPull);
+    _ = hal.GPIOA.setupInput(9, .{ .pullMode = .PullDown });
     // PA10: OTG_FS_ID
-    hal.GPIOA.setAlternateFunction(10, .AF10);
+    //hal.GPIOA.setAlternateFunction(10, .AF10);
+    _ = hal.GPIOA.setupInput(10, .{ .pullMode = .PullDown });
     // PA11: OTG_FS_DM
-    hal.GPIOA.setAlternateFunction(11, .AF10);
+    //hal.GPIOA.setAlternateFunction(11, .AF10);
+    _ = hal.GPIOA.setupInput(11, .{ .pullMode = .PullDown });
     // PA12: OTG_FS_DP
-    hal.GPIOA.setAlternateFunction(12, .AF10);
+    //hal.GPIOA.setAlternateFunction(12, .AF10);
+    _ = hal.GPIOA.setupInput(12, .{ .pullMode = .PullDown });
 
     const interrupts = struct {
         var pcdet: bool = false;

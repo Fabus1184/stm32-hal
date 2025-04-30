@@ -4,13 +4,13 @@ MEMORY
     RAM ( rxw )       : ORIGIN = 0x20000000, LENGTH = 4K
 }
 
-ENTRY(main);
+ENTRY(bareMain);
 __reset_stack_pointer = ORIGIN(RAM) + LENGTH(RAM);
 
 SECTIONS {
     .text : {
         LONG(__reset_stack_pointer); /* Initial stack pointer value */
-        LONG(main | 1); /* The reset handler */
+        LONG(bareMain | 1); /* The reset handler */
         LONG(exceptionHandler | 1); /* NMI handler */
         LONG(exceptionHandler | 1); /* HardFault handler */
         LONG(exceptionHandler | 1); /* MemoryManagement handler */
