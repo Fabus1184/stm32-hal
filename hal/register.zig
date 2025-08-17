@@ -19,6 +19,30 @@ pub fn Register(comptime T: type) type {
         }
     }
 
+    comptime var nonReservedFieldsOpt: [64]std.builtin.Type.StructField = undefined;
+    comptime var nonReservedFieldsCount: usize = 0;
+    for (structTypeInfo.fields) |field| {
+        if (!std.mem.startsWith(u8, field.name, "_")) {
+            const defaultValue: struct { value: ?field.type } = .{ .value = null };
+
+            nonReservedFieldsOpt[nonReservedFieldsCount] = std.builtin.Type.StructField{
+                .name = field.name,
+                .type = @Type(std.builtin.Type{ .optional = .{ .child = field.type } }),
+                .default_value_ptr = &defaultValue.value,
+                .is_comptime = false,
+                .alignment = @alignOf(field.type),
+            };
+            nonReservedFieldsCount += 1;
+        }
+    }
+
+    const modifyArgsType = @Type(std.builtin.Type{ .@"struct" = std.builtin.Type.Struct{
+        .layout = std.builtin.Type.ContainerLayout.auto,
+        .fields = nonReservedFieldsOpt[0..nonReservedFieldsCount],
+        .decls = &.{},
+        .is_tuple = false,
+    } });
+
     return struct {
         ptr: *align(4) volatile Size,
 
@@ -34,12 +58,15 @@ pub fn Register(comptime T: type) type {
             self.ptr.* = @bitCast(value);
         }
 
-        pub fn modify(self: @This(), fields: anytype) void {
-            var value = self.load();
+        pub fn modify(self: @This(), fields: modifyArgsType) void {
+            var newValue = self.load();
             inline for (@typeInfo(@TypeOf(fields)).@"struct".fields) |field| {
-                @field(value, field.name) = @field(fields, field.name);
+                const value = @field(fields, field.name);
+                if (value) |v| {
+                    @field(newValue, field.name) = v;
+                }
             }
-            self.ptr.* = @bitCast(value);
+            self.ptr.* = @bitCast(newValue);
         }
     };
 }

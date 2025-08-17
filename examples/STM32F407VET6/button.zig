@@ -52,7 +52,6 @@ var BUTTON3: hal.gpio.InputPin = undefined;
 
 fn extIrqHandler() void {
     hal.EXTI.clearPending(10);
-    std.log.debug("external interrupt", .{});
 
     LED1.setLevel(BUTTON1.getLevel());
     LED2.setLevel(BUTTON2.getLevel());
@@ -64,6 +63,7 @@ export fn main() noreturn {
     hal.memory.initializeMemory();
 
     hal.RCC.ahb1enr.gpioEEn = true;
+    hal.RCC.ahb1enr.gpioDEn = true;
 
     hal.RCC.apb1enr.usart3En = true;
 
@@ -77,6 +77,8 @@ export fn main() noreturn {
 
     hal.USART3.init(hal.RCC.apb1Clock(), BAUDRATE, .eight, .one);
 
+    // clear screen character
+    std.log.debug("\x1b[2J\x1b[H", .{});
     std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 
     hal.core.SoftExceptionHandler.put(.IRQ40, extIrqHandler);
@@ -90,9 +92,9 @@ export fn main() noreturn {
 
     hal.core.cortex.NVIC.enableInterrupt(40);
 
-    LED1 = hal.GPIOE.setupOutput(10, .{});
-    LED2 = hal.GPIOE.setupOutput(11, .{});
-    LED3 = hal.GPIOE.setupOutput(12, .{});
+    LED1 = hal.GPIOE.setupOutput(13, .{ .level = 1 });
+    LED2 = hal.GPIOE.setupOutput(14, .{ .level = 1 });
+    LED3 = hal.GPIOE.setupOutput(15, .{ .level = 1 });
 
     BUTTON1 = hal.GPIOE.setupInput(10, .{ .pullMode = .PullUp });
     BUTTON2 = hal.GPIOE.setupInput(11, .{ .pullMode = .PullUp });
@@ -100,6 +102,5 @@ export fn main() noreturn {
 
     while (true) {
         asm volatile ("wfi");
-        std.log.debug("wfi", .{});
     }
 }

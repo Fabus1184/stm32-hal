@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const CPUID: *const packed struct(u32) {
     revision: u4,
     partno: u12,
@@ -97,6 +99,20 @@ fn Systick(baseAddress: [*]volatile u32) type {
             skew: bool,
             noref: bool,
         } = @ptrCast(&baseAddress[3]),
+
+        pub fn delay(self: @This(), rate: u32, us: u32) void {
+            const cycles: u64 = @as(u64, rate) * @as(u64, us) / 1_000_000;
+
+            if (cycles > std.math.maxInt(u24)) {
+                @panic("delay too long");
+            }
+
+            self.rvr.value = @intCast(cycles);
+            self.csr.enable = true;
+            while (self.csr.countflag == false) {
+                asm volatile ("nop");
+            }
+        }
     };
 }
 

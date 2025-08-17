@@ -198,5 +198,20 @@ pub fn Usart(comptime baseAddress: [*]align(4) volatile u8) type {
                 try self.checkError();
             }
         }
+
+        pub fn writer(self: *const @This()) std.io.AnyWriter {
+            const Self = @This();
+
+            return std.io.AnyWriter{
+                .context = self,
+                .writeFn = struct {
+                    fn writeFn(context: *const anyopaque, bytes: []const u8) error{}!usize {
+                        const usart = @as(*const Self, @alignCast(@ptrCast(context)));
+                        usart.send(bytes);
+                        return bytes.len;
+                    }
+                }.writeFn,
+            };
+        }
     };
 }

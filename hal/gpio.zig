@@ -81,6 +81,7 @@ pub const Gpio = struct {
             outputType: Gpio.OutputType = Gpio.OutputType.PushPull,
             outputSpeed: Gpio.OutputSpeed = Gpio.OutputSpeed.Low,
             alternateFunction: ?Gpio.AlternateFunction = null,
+            level: u1 = 0,
         },
     ) OutputPin {
         setBitmask32(
@@ -96,10 +97,14 @@ pub const Gpio = struct {
             self.setAlternateFunction(pin, f);
         }
 
-        return OutputPin{
+        const outputPin = OutputPin{
             .pin = pin,
             .gpio = self,
         };
+
+        outputPin.setLevel(setup.level);
+
+        return outputPin;
     }
 
     pub fn setupInput(
@@ -144,7 +149,7 @@ pub const InputPin = struct {
     pin: u4,
     gpio: Gpio,
 
-    pub fn getLevel(self: @This()) u1 {
+    pub inline fn getLevel(self: @This()) u1 {
         return @truncate((self.gpio.inputDataRegister.* >> self.pin) & 1);
     }
 };
@@ -153,7 +158,7 @@ pub const OutputPin = struct {
     pin: u4,
     gpio: Gpio,
 
-    pub fn setLevel(self: @This(), level: u1) void {
+    pub inline fn setLevel(self: @This(), level: u1) void {
         if (level == 1) {
             self.gpio.outputDataRegister.* |= @as(u32, 1) << self.pin;
         } else {
@@ -161,11 +166,11 @@ pub const OutputPin = struct {
         }
     }
 
-    pub fn getLevel(self: @This()) u1 {
+    pub inline fn getLevel(self: @This()) u1 {
         return @truncate((self.gpio.inputDataRegister.* >> self.pin) & 1);
     }
 
-    pub fn toggleLevel(self: @This()) void {
+    pub inline fn toggleLevel(self: @This()) void {
         self.setLevel(~self.getLevel());
     }
 };

@@ -6,6 +6,8 @@ pub const flash = @import("flash.zig");
 pub const syscfg = @import("syscfg.zig");
 pub const dma = @import("dma.zig");
 pub const usb = @import("usb.zig");
+pub const rtc = @import("rtc.zig");
+pub const pwr = @import("pwr.zig");
 
 pub const spi = @import("../spi.zig");
 pub const exti = @import("../exti.zig");
@@ -60,3 +62,7 @@ pub const USB_FS = usb.OtgFs(@ptrFromInt(0x5000_0000)){};
 
 pub const SPI1 = spi.MakeSpi(@ptrFromInt(0x4001_3000));
 pub const SPI2 = spi.MakeSpi(@ptrFromInt(0x4000_3800));
+
+pub const RTC = rtc.MakeRtc(@ptrFromInt(0x4000_2800));
+
+pub const PWR = pwr.MakePwr(@ptrFromInt(0x4000_7000));

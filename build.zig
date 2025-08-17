@@ -22,9 +22,11 @@ pub fn build(b: *std.Build) void {
     });
 
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
-    _ = b.step("run", "flash and run");
 
-    const examples = .{ .{ "STM32F030F4", .{"w5500"}, cortex_m0 }, .{ "STM32F407VET6", .{ "ethernet", "button", "usb-host", "usart-rx" }, cortex_m4 } };
+    const examples = .{
+        .{ "STM32F030F4", .{"w5500"}, cortex_m0 },
+        .{ "STM32F407VET6", .{ "ethernet", "button", "usb-host", "usart-rx", "flipdot" }, cortex_m4 },
+    };
     inline for (examples) |entry| {
         const hal = b.createModule(.{
             .root_source_file = b.path("hal/hal.zig"),
@@ -47,14 +49,14 @@ pub fn build(b: *std.Build) void {
 
             firmware.setLinkerScript(b.path(entry[0] ++ ".ld"));
 
-            b.installArtifact(firmware);
-
             const run = b.addSystemCommand(&.{
                 "/opt/stm32cubeprog/bin/STM32_Programmer_CLI",
                 "-c",
                 "port=SWD",
                 "-w",
-                "zig-out/bin/" ++ example ++ ".elf",
+            });
+            run.addFileArg(firmware.getEmittedBin());
+            run.addArgs(&.{
                 "0x08000000",
                 "-rst",
             });
