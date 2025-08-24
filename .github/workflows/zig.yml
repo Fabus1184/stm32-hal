@@ -28,7 +28,7 @@ jobs:
       # Runs a single command using the runners shell
       - name: install zig
         run: |
-          export ZIG_VERSION=0.13.0
+          export ZIG_VERSION=0.14.0
           sudo apt-get update
           sudo apt-get install -y xz-utils wget
           wget https://ziglang.org/download/$ZIG_VERSION/zig-linux-x86_64-$ZIG_VERSION.tar.xz
