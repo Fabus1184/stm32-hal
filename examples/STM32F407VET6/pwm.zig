@@ -81,16 +81,20 @@ export fn main() noreturn {
     hal.TIM10.setupCh1Pwm();
     hal.TIM11.setupCh1Pwm();
 
-    var rgb = [3]f32{ 0.0, 0.0, 0.0 };
+    var hue: f32 = 0.0;
 
     while (true) {
-        for ([_]hal.tim.Tim{ hal.TIM9, hal.TIM10, hal.TIM11 }, rgb) |tim, val| {
-            tim.setDutyCycle(std.math.pow(f32, @sin(val), 2.2));
-        }
+        const rgb = [_]f32{
+            (std.math.sin(hue + 0.0) + 1.0) / 2.0,
+            (std.math.sin(hue + 2.0) + 1.0) / 2.0,
+            (std.math.sin(hue + 4.0) + 1.0) / 2.0,
+        };
+        hal.TIM9.setDutyCycle(std.math.pow(f32, rgb[0], 2.2));
+        hal.TIM10.setDutyCycle(std.math.pow(f32, rgb[1], 2.2));
+        hal.TIM11.setDutyCycle(std.math.pow(f32, rgb[2], 2.2));
+
         hal.utils.delayMicros(1_000);
 
-        rgb[0] = @mod(rgb[0] + 0.01, std.math.pi);
-        rgb[1] = @mod(rgb[1] + 0.0075, std.math.pi);
-        rgb[2] = @mod(rgb[2] + 0.005, std.math.pi);
+        hue = @mod(hue + 0.03, std.math.pi * 2.0);
     }
 }
