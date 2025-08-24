@@ -36,4 +36,4 @@ jobs:
           echo PATH=$PATH:$(pwd)/zig-linux-x86_64-$ZIG_VERSION >> $GITHUB_ENV
 
       - name: build
-        run: zig build
+        run: zig build --release=small
