@@ -60,7 +60,9 @@ export fn main() noreturn {
     std.log.debug("switched to PLL", .{});
     std.log.debug("clocks: {}", .{hal.RCC.clocks()});
 
-    {
+    if (!hal.RTC.isInitialized()) {
+        std.log.debug("RTC not initialized, initializing...", .{});
+
         hal.RCC.apb1enr.pwrEn = true;
 
         // disable backup domain write protection
@@ -100,6 +102,13 @@ export fn main() noreturn {
         );
     }
 
+    {
+        hal.RCC.apb2enr.adc1En = true;
+
+        hal.ADC1.init();
+        hal.ADC_COMMON.enableTemperatureSensor();
+    }
+
     const LED1 = hal.GPIOE.setupOutput(13, .{ .level = 1 });
 
     const sr = ShiftRegister{
@@ -129,21 +138,33 @@ export fn main() noreturn {
     board.fill(1);
     board.fill(0);
 
+    var time = hal.RTC.readTime();
+    var avgTemp: f32 = 30.0;
+
     while (true) {
         LED1.toggleLevel();
 
-        const time = hal.RTC.readTime();
+        std.log.debug("time: {?} avg temp: {d:.03}°C", .{ time, avgTemp });
 
         var text: [512]u8 = undefined;
-        board.writeText(
-            .{ 5, 2 },
-            std.fmt.bufPrint(&text, "{:02}:{:02}", .{ time.hour, time.minute }) catch unreachable,
-        );
-        board.writeText(.{ 3, 9 }, "29.5\xA7C");
+        board.writeText(.{ 5, 2 }, std.fmt.bufPrint(&text, "{:02}:{:02}", .{ time.hour, time.minute }) catch unreachable);
+        board.writeText(.{ 3, 9 }, std.fmt.bufPrint(&text, "{d:.01}\xA7C", .{avgTemp - 14.4}) catch unreachable);
 
+        var avgTempCount: usize = 0;
         while (hal.RTC.readTime().minute == time.minute) {
-            asm volatile ("nop");
+            const voltage = hal.ADC1.convert(16);
+            const temp = (voltage - 0.76) / 0.0025 + 25;
+
+            if (avgTempCount == 0) {
+                avgTemp = temp;
+            } else {
+                avgTemp = avgTemp + (temp - avgTemp) / (@as(f32, @floatFromInt(avgTempCount + 1)));
+            }
+
+            avgTempCount += 1;
         }
+
+        time = hal.RTC.readTime();
     }
 }
 
@@ -258,6 +279,11 @@ const Board = struct {
                             @intCast((data[j] >> @intCast(i)) & 1),
                         );
                     }
+                }
+
+                // clear the empty column after the character
+                for (0..5) |j| {
+                    self.pixel(.{ x + width, j + pos[1] }, 0);
                 }
 
                 x += width + 1;

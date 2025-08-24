@@ -15,7 +15,8 @@ pub const STM32F030F4 = struct {
 fn MakeUtils(comptime hal: anytype) type {
     return struct {
         pub fn delayMicros(us: u32) void {
-            hal.SYSTICK.delay(hal.RCC.ahbClock() / 8, us);
+            const cycles = (hal.RCC.ahbClock() / 1_000_000) * us;
+            hal.core.DWT.waitCycles(cycles -| 700);
         }
 
         pub fn logFn(comptime writer: anytype) fn (comptime std.log.Level, comptime @Type(.enum_literal), comptime []const u8, anytype) void {

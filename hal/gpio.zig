@@ -66,7 +66,7 @@ pub const Gpio = struct {
         register.* = (register.* & ~(maxValue << shiftAmount)) | (realValue << shiftAmount);
     }
 
-    fn setAlternateFunction(self: @This(), n: u4, f: AlternateFunction) void {
+    inline fn setAlternateFunction(self: @This(), n: u4, f: AlternateFunction) void {
         if (n < 8) {
             setBitmask32(AlternateFunction, self.alternateFunctionLowRegister, n, f);
         } else {
@@ -84,12 +84,6 @@ pub const Gpio = struct {
             level: u1 = 0,
         },
     ) OutputPin {
-        setBitmask32(
-            Gpio.PinMode,
-            self.modeRegister,
-            pin,
-            if (setup.alternateFunction) |_| Gpio.PinMode.AlternateFunction else Gpio.PinMode.Output,
-        );
         setBitmask32(Gpio.OutputType, self.outputTypeRegister, pin, setup.outputType);
         setBitmask32(Gpio.OutputSpeed, self.outputSpeedRegister, pin, setup.outputSpeed);
 
@@ -103,6 +97,13 @@ pub const Gpio = struct {
         };
 
         outputPin.setLevel(setup.level);
+
+        setBitmask32(
+            Gpio.PinMode,
+            self.modeRegister,
+            pin,
+            if (setup.alternateFunction) |_| Gpio.PinMode.AlternateFunction else Gpio.PinMode.Output,
+        );
 
         return outputPin;
     }

@@ -127,6 +127,10 @@ pub const Rtc = struct {
         self.writeProtect.modify(.{ .key = 0x53 });
     }
 
+    pub fn isInitialized(self: @This()) bool {
+        return self.isr.load().initializationStatusFlag == 1;
+    }
+
     pub fn init(
         self: @This(),
         date: Date,

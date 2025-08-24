@@ -8,6 +8,8 @@ pub const dma = @import("dma.zig");
 pub const usb = @import("usb.zig");
 pub const rtc = @import("rtc.zig");
 pub const pwr = @import("pwr.zig");
+pub const adc = @import("adc.zig");
+pub const tim = @import("tim.zig");
 
 pub const spi = @import("../spi.zig");
 pub const exti = @import("../exti.zig");
@@ -25,7 +27,7 @@ pub const RCC = rcc.Rcc(
     @ptrFromInt(0x4002_3800),
     16_000_000,
     32_000,
-    25_000_000,
+    8_000_000,
     32_768,
 ){};
 
@@ -66,3 +68,23 @@ pub const SPI2 = spi.MakeSpi(@ptrFromInt(0x4000_3800));
 pub const RTC = rtc.MakeRtc(@ptrFromInt(0x4000_2800));
 
 pub const PWR = pwr.MakePwr(@ptrFromInt(0x4000_7000));
+
+pub const ADC1 = adc.MakeAdc(@ptrFromInt(0x4001_2000));
+pub const ADC2 = adc.MakeAdc(@ptrFromInt(0x4001_2100));
+pub const ADC3 = adc.MakeAdc(@ptrFromInt(0x4001_2200));
+pub const ADC_COMMON = adc.MakeCommon(@ptrFromInt(0x4001_2300));
+
+pub const TIM14 = tim.MakeTim(@ptrFromInt(0x4000_2000));
+pub const TIM13 = tim.MakeTim(@ptrFromInt(0x4000_1C00));
+pub const TIM12 = tim.MakeTim(@ptrFromInt(0x4000_1800));
+pub const TIM10 = tim.MakeTim(@ptrFromInt(0x4001_4400));
+pub const TIM11 = tim.MakeTim(@ptrFromInt(0x4001_4800));
+pub const TIM8 = tim.MakeTim(@ptrFromInt(0x4001_0400));
+pub const TIM9 = tim.MakeTim(@ptrFromInt(0x4001_4000));
+pub const TIM7 = tim.MakeTim(@ptrFromInt(0x4000_1400));
+pub const TIM6 = tim.MakeTim(@ptrFromInt(0x4000_1000));
+pub const TIM5 = tim.MakeTim(@ptrFromInt(0x4000_0C00));
+pub const TIM4 = tim.MakeTim(@ptrFromInt(0x4000_0800));
+pub const TIM3 = tim.MakeTim(@ptrFromInt(0x4000_0400));
+pub const TIM2 = tim.MakeTim(@ptrFromInt(0x4000_0000));
+pub const TIM1 = tim.MakeTim(@ptrFromInt(0x4001_0000));

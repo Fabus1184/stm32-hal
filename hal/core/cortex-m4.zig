@@ -34,6 +34,44 @@ pub const ICSR: *volatile packed struct(u32) {
     nmipendset: bool,
 } = @ptrFromInt(0xE000_ED04);
 
+pub const DWT = struct {
+    ctrl: *volatile packed struct(u32) {
+        cyccntena: bool,
+        _0: u31,
+    } = @ptrFromInt(0xE000_1000),
+    cyccnt: *volatile u32 = @ptrFromInt(0xE000_1004),
+
+    pub fn enableCycleCounter(self: @This()) void {
+        self.ctrl.cyccntena = true;
+    }
+
+    pub inline fn getCycleCount(self: @This()) u32 {
+        return self.cyccnt.*;
+    }
+
+    pub fn waitCycles(self: @This(), cycles: u32) void {
+        const end = @addWithOverflow(self.getCycleCount(), cycles);
+
+        if (end[1] == 1) {
+            while (self.getCycleCount() >= end[0]) {
+                asm volatile ("nop");
+            }
+        }
+
+        while (self.getCycleCount() < end[0]) {
+            asm volatile ("nop");
+        }
+    }
+}{};
+
+pub const DEBUG = struct {
+    cr: *volatile packed struct(u32) {
+        _0: u24,
+        trcena: bool,
+        _1: u7,
+    } = @ptrFromInt(0xE000_EDFC),
+}{};
+
 export fn exceptionHandler() callconv(.Naked) noreturn {
     asm volatile (
     // R0-R3, R12, LR, PC, xPSR are automatically pushed onto the stack

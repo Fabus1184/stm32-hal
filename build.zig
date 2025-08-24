@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) void {
 
     const examples = .{
         .{ "STM32F030F4", .{"w5500"}, cortex_m0 },
-        .{ "STM32F407VET6", .{ "ethernet", "button", "usb-host", "usart-rx", "flipdot" }, cortex_m4 },
+        .{ "STM32F407VET6", .{ "blink", "pwm", "1wire", "ethernet", "button", "usb-host", "usart-rx", "flipdot" }, cortex_m4 },
     };
     inline for (examples) |entry| {
         const hal = b.createModule(.{
@@ -48,6 +48,8 @@ pub fn build(b: *std.Build) void {
             firmware.root_module.addImport("hal", hal);
 
             firmware.setLinkerScript(b.path(entry[0] ++ ".ld"));
+
+            b.installArtifact(firmware);
 
             const run = b.addSystemCommand(&.{
                 "/opt/stm32cubeprog/bin/STM32_Programmer_CLI",

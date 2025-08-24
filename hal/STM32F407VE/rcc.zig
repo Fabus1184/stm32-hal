@@ -28,7 +28,7 @@ const PllConfigRegister = packed struct(u32) {
         div6 = 0b10,
         div8 = 0b11,
 
-        fn value(self: @This()) u32 {
+        inline fn value(self: @This()) u32 {
             return switch (self) {
                 .div2 => 2,
                 .div4 => 4,
@@ -563,7 +563,7 @@ pub fn Rcc(
 
         const std = @import("std");
 
-        pub fn pllClock(self: @This()) struct { pClock: u32, qClock: u32 } {
+        pub inline fn pllClock(self: @This()) struct { pClock: u32, qClock: u32 } {
             const pllSrc: u64 = switch (self.pllcgfr.pllSrc) {
                 .hsi => HSI_FREQ,
                 .hse => HSE_FREQ,
@@ -577,7 +577,7 @@ pub fn Rcc(
             };
         }
 
-        pub fn ahbClock(self: @This()) u32 {
+        pub inline fn ahbClock(self: @This()) u32 {
             return switch (self.cfgr.sws) {
                 .hse => HSE_FREQ,
                 .hsi => HSI_FREQ,
@@ -586,15 +586,15 @@ pub fn Rcc(
             } / self.cfgr.hpre.value();
         }
 
-        pub fn apb1Clock(self: @This()) u32 {
+        pub inline fn apb1Clock(self: @This()) u32 {
             return self.ahbClock() / self.cfgr.ppre1.value();
         }
 
-        pub fn apb2Clock(self: @This()) u32 {
+        pub inline fn apb2Clock(self: @This()) u32 {
             return self.ahbClock() / self.cfgr.ppre2.value();
         }
 
-        pub fn rtcClock(self: @This()) u32 {
+        pub inline fn rtcClock(self: @This()) u32 {
             return switch (self.bdcr.rtcSel) {
                 .noClock => 0,
                 .lse => LSE_FREQ,
@@ -603,7 +603,7 @@ pub fn Rcc(
             };
         }
 
-        pub fn systemClock(self: @This()) u32 {
+        pub inline fn systemClock(self: @This()) u32 {
             return switch (self.cfgr.sws) {
                 .hse => HSE_FREQ,
                 .hsi => HSI_FREQ,
