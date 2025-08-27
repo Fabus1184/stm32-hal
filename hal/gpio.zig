@@ -128,6 +128,11 @@ pub const Gpio = struct {
             .gpio = self,
         };
     }
+
+    pub fn setupAnalog(self: @This(), pin: u4) void {
+        setBitmask32(Gpio.PinMode, self.modeRegister, pin, Gpio.PinMode.Analog);
+        setBitmask32(Gpio.PullMode, self.pullRegister, pin, Gpio.PullMode.NoPull);
+    }
 };
 
 pub fn MakeGpio(comptime baseAddress: [*]volatile u32) Gpio {

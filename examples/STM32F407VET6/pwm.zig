@@ -84,17 +84,12 @@ export fn main() noreturn {
     var hue: f32 = 0.0;
 
     while (true) {
-        const rgb = [_]f32{
-            (std.math.sin(hue + 0.0) + 1.0) / 2.0,
-            (std.math.sin(hue + 2.0) + 1.0) / 2.0,
-            (std.math.sin(hue + 4.0) + 1.0) / 2.0,
-        };
-        hal.TIM9.setDutyCycle(std.math.pow(f32, rgb[0], 2.2));
-        hal.TIM10.setDutyCycle(std.math.pow(f32, rgb[1], 2.2));
-        hal.TIM11.setDutyCycle(std.math.pow(f32, rgb[2], 2.2));
+        hal.TIM9.setDutyCycle(std.math.pow(f32, @sin(hue + 0.0) * 0.5 + 0.5, 2.2));
+        hal.TIM10.setDutyCycle(std.math.pow(f32, @sin(hue + 2.0 * std.math.pi / 3.0) * 0.5 + 0.5, 2.2));
+        hal.TIM11.setDutyCycle(std.math.pow(f32, @sin(hue + 4.0 * std.math.pi / 3.0) * 0.5 + 0.5, 2.2));
 
         hal.utils.delayMicros(1_000);
 
-        hue = @mod(hue + 0.03, std.math.pi * 2.0);
+        hue = @mod(hue + 0.02, 2.0 * std.math.pi);
     }
 }

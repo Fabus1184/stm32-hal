@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const Register = @import("../register.zig").Register;
 
 pub const Tim = struct {
@@ -23,9 +25,100 @@ pub const Tim = struct {
     }),
 
     cr2: *volatile u16,
-    smcr: *volatile u16,
-    dier: *volatile u16,
-    sr: *volatile u16,
+
+    smcr: Register(packed struct(u16) {
+        /// slave mode selection
+        sms: enum(u3) {
+            disabled = 0b000,
+            encoder1 = 0b001,
+            encoder2 = 0b010,
+            encoderBoth = 0b011,
+            reset = 0b100,
+            gated = 0b101,
+            trigger = 0b110,
+            externalClock = 0b111,
+        },
+        _0: u1,
+        /// trigger selection
+        ts: u3,
+        /// master/slave mode
+        msm: u1,
+        /// external trigger filter
+        etf: u4,
+        /// external trigger prescaler
+        etps: u2,
+        /// external clock enable
+        ece: u1,
+        /// external trigger polarity
+        etp: u1,
+    }),
+
+    /// TIM1/TIM8 DMA/interrupt enable register
+    dier: Register(packed struct(u16) {
+        /// update interrupt enable
+        uie: u1,
+        /// capture/compare 1 interrupt enable
+        cc1ie: u1,
+        /// capture/compare 2 interrupt enable
+        cc2ie: u1,
+        /// capture/compare 3 interrupt enable
+        cc3ie: u1,
+        /// capture/compare 4 interrupt enable
+        cc4ie: u1,
+        /// com interrupt enable
+        comie: u1,
+        /// trigger interrupt enable
+        tie: u1,
+        /// break interrupt enable
+        bie: u1,
+        /// update DMA request enable
+        ude: u1,
+        /// capture/compare 1 DMA request enable
+        cc1de: u1,
+        /// capture/compare 2 DMA request enable
+        cc2de: u1,
+        /// capture/compare 3 DMA request enable
+        cc3de: u1,
+        /// capture/compare 4 DMA request enable
+        cc4de: u1,
+        /// com DMA request enable
+        comde: u1,
+        /// trigger DMA request enable
+        tde: u1,
+        _: u1,
+    }),
+
+    /// TIM1/TIM8 status register
+    sr: Register(packed struct(u16) {
+        /// update interrupt flag
+        uif: u1,
+        /// capture/compare 1 interrupt flag
+        cc1if: u1,
+        /// capture/compare 2 interrupt flag
+        cc2if: u1,
+        /// capture/compare 3 interrupt flag
+        cc3if: u1,
+        /// capture/compare 4 interrupt flag
+        cc4if: u1,
+        /// com interrupt flag
+        comif: u1,
+        /// trigger interrupt flag
+        tif: u1,
+        /// break interrupt flag
+        bif: u1,
+        _0: u1,
+        /// capture/compare 1 overcapture flag
+        cc1of: u1,
+        /// capture/compare 2 overcapture flag
+        cc2of: u1,
+        /// capture/compare 3 overcapture flag
+        cc3of: u1,
+        /// capture/compare 4 overcapture flag
+        cc4of: u1,
+        _: u3,
+    }),
+
+    /// TIM1/TIM8 event generation register
     egr: Register(packed struct(u16) {
         /// update generation
         ug: bool,
@@ -56,34 +149,34 @@ pub const Tim = struct {
         /// capture/compare 1 output enable
         cc1e: bool,
         /// capture/compare 1 output polarity
-        cc1p: bool,
+        cc1p: u1,
         /// capture/compare 1 complementary output enable
         cc1ne: bool,
         /// capture/compare 1 complementary output polarity
-        cc1np: bool,
+        cc1np: u1,
         /// capture/compare 2 output enable
         cc2e: bool,
         /// capture/compare 2 output polarity
-        cc2p: bool,
+        cc2p: u1,
         /// capture/compare 2 complementary output enable
         cc2ne: bool,
         /// capture/compare 2 complementary output polarity
-        cc2np: bool,
+        cc2np: u1,
         /// capture/compare 3 output enable
         cc3e: bool,
         /// capture/compare 3 output polarity
-        cc3p: bool,
+        cc3p: u1,
         /// capture/compare 3 complementary output enable
         cc3ne: bool,
         /// capture/compare 3 complementary output polarity
-        cc3np: bool,
+        cc3np: u1,
         /// capture/compare 4 output enable
         cc4e: bool,
         /// capture/compare 4 output polarity
-        cc4p: bool,
+        cc4p: u1,
         _: u1,
         /// capture/compare 4 complementary output polarity
-        cc4np: bool,
+        cc4np: u1,
     }),
 
     cnt: *volatile u16,
@@ -181,15 +274,42 @@ pub const Tim = struct {
 
         self.update();
     }
+
+    pub fn startEncoder(self: @This()) void {
+        self.smcr.modify(.{ .sms = .encoder1 });
+        self.ccer.modify(.{
+            .cc1e = true,
+            .cc2e = true,
+
+            .cc1p = 0,
+            .cc2p = 0,
+
+            .cc1np = 0,
+            .cc2np = 0,
+        });
+        self.ccmr1.modify(.{
+            .cc1s = .inputTi1,
+            .cc2s = .inputTi2,
+        });
+        self.arr.* = std.math.maxInt(u16);
+
+        self.update();
+
+        self.cr1.modify(.{ .cen = true });
+    }
+
+    pub fn count(self: @This()) u16 {
+        return self.cnt.*;
+    }
 };
 
 pub fn MakeTim(base: [*]align(4) u8) Tim {
     return Tim{
         .cr1 = .{ .ptr = @ptrCast(base + 0x00) },
         .cr2 = @ptrCast(base + 0x04),
-        .smcr = @ptrCast(base + 0x08),
-        .dier = @ptrCast(base + 0x0C),
-        .sr = @ptrCast(base + 0x10),
+        .smcr = .{ .ptr = @ptrCast(base + 0x08) },
+        .dier = .{ .ptr = @ptrCast(base + 0x0C) },
+        .sr = .{ .ptr = @ptrCast(base + 0x10) },
         .egr = .{ .ptr = @ptrCast(base + 0x14) },
         .ccmr1 = .{ .ptr = @ptrCast(base + 0x18) },
         .ccmr2 = .{ .ptr = @ptrCast(base + 0x1C) },

@@ -83,7 +83,7 @@ export fn exceptionHandler() callconv(.Naked) noreturn {
         // load PC from the stack into R0
         \\ldr r0, [sp, #44]
         // Call the real handler with the PC in R0
-        \\bl exceptionHandlerReal
+        \\bl %[handler]
         // Restore LR
         \\pop {r0}
         \\mov lr, r0
@@ -91,7 +91,10 @@ export fn exceptionHandler() callconv(.Naked) noreturn {
         \\pop {r4-r7}
         // Return from the interrupt
         \\bx lr
-        ::: "r0", "r1", "r2", "r3", "r12", "lr", "memory");
+        :
+        : [handler] "i" (exceptionHandlerReal),
+        : "r0", "r1", "r2", "r3", "r12", "lr", "memory"
+    );
 }
 
 const Exception = enum(@TypeOf(ICSR.vectactive)) {
@@ -189,14 +192,21 @@ const Exception = enum(@TypeOf(ICSR.vectactive)) {
     IRQ80 = 96,
 };
 
-pub var SoftExceptionHandler = std.EnumMap(Exception, *const fn () void){};
+pub var SoftExceptionHandler: struct {
+    handlers: [512]?*const fn () void = .{null} ** 512,
+
+    pub inline fn put(self: *@This(), e: Exception, handler: ?*const fn () void) void {
+        self.handlers[@intFromEnum(e)] = handler;
+    }
+} = .{};
 
 export fn exceptionHandlerReal(pc: u32) callconv(.C) void {
-    const e: Exception = @enumFromInt(ICSR.vectactive);
-
-    if (SoftExceptionHandler.get(e)) |handler| {
+    if (SoftExceptionHandler.handlers[ICSR.vectactive]) |handler| {
+        @branchHint(.likely);
         handler();
     } else {
+        @branchHint(.cold);
+        const e: Exception = @enumFromInt(ICSR.vectactive);
         std.log.err("unhandled exception: {s}, pc: {x}", .{ @tagName(e), pc });
         @panic("unhandled exception");
     }

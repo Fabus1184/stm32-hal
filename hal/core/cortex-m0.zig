@@ -78,7 +78,7 @@ export fn exceptionHandler() callconv(.Naked) noreturn {
         // load PC from the stack into R0
         \\ldr r0, [sp, #44]
         // Call the real handler with the PC in R0
-        \\bl exceptionHandlerReal
+        \\bl %[handler]
         // Restore LR
         \\pop {r0}
         \\mov lr, r0
@@ -86,7 +86,10 @@ export fn exceptionHandler() callconv(.Naked) noreturn {
         \\pop {r4-r7}
         // Return from the interrupt
         \\bx lr
-        ::: "r0", "r1", "r2", "r3", "r12", "lr", "memory");
+        :
+        : [handler] "i" (exceptionHandlerReal),
+        : "r0", "r1", "r2", "r3", "r12", "lr", "memory"
+    );
 }
 
 const Exception = enum(@TypeOf(ICSR.vectactive)) {
