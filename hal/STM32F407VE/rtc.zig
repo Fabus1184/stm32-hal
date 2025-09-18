@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const Register = @import("../register.zig").Register;
 
 pub const Rtc = struct {
@@ -83,12 +85,12 @@ pub const Rtc = struct {
     }),
     prer: Register(packed struct(u32) { predivS: u15, _0: u1, previdA: u7, _1: u9 }),
 
-    const Date = struct {
+    pub const Date = struct {
         day: u32, // 1-31
         month: u32, // 1-12
         year: u32, // 0-99
     };
-    const Time = struct {
+    pub const Time = struct {
         hour: u32, // 0-23 or 1-12
         minute: u32, // 0-59
         second: u32, // 0-59
@@ -102,8 +104,6 @@ pub const Rtc = struct {
 
         if (value.notation == .pm and hour < 12) {
             hour += 12; // convert to 24-hour format
-        } else if (value.notation == .amOr24H and hour == 12) {
-            hour = 0; // convert 12 AM to 0 hours
         }
 
         return Time{
@@ -146,6 +146,7 @@ pub const Rtc = struct {
             @panic("RTC initialization failed, maybe write protection is enabled?");
         }
 
+        std.log.debug("waiting for RTC to enter initialization mode", .{});
         while (self.isr.load().initializationFlag == 0) {
             // wait for initialization to complete
         }

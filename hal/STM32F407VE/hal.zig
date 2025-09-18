@@ -15,6 +15,7 @@ pub const spi = @import("../spi.zig");
 pub const exti = @import("../exti.zig");
 pub const gpio = @import("../gpio.zig");
 pub const memory = @import("../memory.zig");
+pub const sdio = @import("sdio.zig");
 
 pub const core = @import("../core/cortex-m4.zig");
 pub usingnamespace core;
@@ -88,3 +89,5 @@ pub const TIM4 = tim.MakeTim(@ptrFromInt(0x4000_0800));
 pub const TIM3 = tim.MakeTim(@ptrFromInt(0x4000_0400));
 pub const TIM2 = tim.MakeTim(@ptrFromInt(0x4000_0000));
 pub const TIM1 = tim.MakeTim(@ptrFromInt(0x4001_0000));
+
+pub const SDIO = sdio.MakeSdio(@ptrFromInt(0x4001_2C00));

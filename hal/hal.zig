@@ -19,33 +19,37 @@ fn MakeUtils(comptime hal: anytype) type {
             hal.core.DWT.waitCycles(cycles -| 700);
         }
 
-        pub fn logFn(comptime writer: anytype) fn (comptime std.log.Level, comptime @Type(.enum_literal), comptime []const u8, anytype) void {
+        pub fn logFn(
+            comptime writer: anytype,
+            comptime options: struct { time: bool = false },
+        ) fn (comptime std.log.Level, comptime @Type(.enum_literal), comptime []const u8, anytype) void {
             return struct {
                 fn log(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
-                    var buffer: [512]u8 = undefined;
-                    const result = std.fmt.bufPrint(&buffer, format, args) catch {
-                        std.log.err("failed to format log message", .{});
-                        return;
-                    };
-
                     const colors = std.EnumMap(std.log.Level, []const u8).init(.{
                         .debug = "\x1b[36m",
                         .info = "\x1b[32m",
                         .warn = "\x1b[33m",
                         .err = "\x1b[31m",
                     });
-                    const reset = "\x1b[0m";
 
-                    std.fmt.format(writer, "{s}[{s}]{s}: {s}{s}\n", .{
-                        colors.getAssertContains(level),
+                    std.fmt.format(writer, "{s}[", .{colors.getAssertContains(level)}) catch unreachable;
+
+                    if (options.time) {
+                        const time = hal.RTC.readTime();
+                        std.fmt.format(writer, "{d:02}:{d:02}:{d:02} ", .{ time.hour, time.minute, time.second }) catch unreachable;
+                    }
+
+                    std.fmt.format(writer, "{s}]{s}: ", .{
                         @tagName(level),
                         if (scope == .default) "" else " (" ++ @tagName(scope) ++ ")",
-                        result,
-                        reset,
-                    }) catch {
-                        std.log.err("failed to format log message 2", .{});
+                    }) catch unreachable;
+
+                    std.fmt.format(writer, format, args) catch {
+                        std.log.err("failed to format log message", .{});
                         return;
                     };
+
+                    writer.writeAll("\x1b[0m\n") catch unreachable;
                 }
             }.log;
         }

@@ -46,11 +46,11 @@ pub fn Register(comptime T: type) type {
     return struct {
         ptr: *align(4) volatile Size,
 
-        pub fn load(self: @This()) T {
+        pub inline fn load(self: @This()) T {
             return @bitCast(self.ptr.*);
         }
 
-        pub fn store(self: @This(), value: T) void {
+        pub inline fn store(self: @This(), value: T) void {
             if (hasReservedFields) {
                 @compileError("Register struct has reserved fields");
             }
@@ -58,7 +58,7 @@ pub fn Register(comptime T: type) type {
             self.ptr.* = @bitCast(value);
         }
 
-        pub fn modify(self: @This(), fields: modifyArgsType) void {
+        pub inline fn modify(self: @This(), fields: modifyArgsType) void {
             var newValue = self.load();
             inline for (@typeInfo(@TypeOf(fields)).@"struct".fields) |field| {
                 const value = @field(fields, field.name);

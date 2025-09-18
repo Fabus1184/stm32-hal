@@ -4,7 +4,7 @@ const hal = @import("hal").STM32F407VE;
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
-    .logFn = hal.utils.logFn(hal.USART1.writer()),
+    .logFn = hal.utils.logFn(hal.USART1.writer(), .{}),
 };
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {

@@ -133,6 +133,18 @@ pub const Gpio = struct {
         setBitmask32(Gpio.PinMode, self.modeRegister, pin, Gpio.PinMode.Analog);
         setBitmask32(Gpio.PullMode, self.pullRegister, pin, Gpio.PullMode.NoPull);
     }
+
+    pub fn setupAlternateFunction(self: @This(), pin: u4, f: Gpio.AlternateFunction, setup: struct {
+        outputType: Gpio.OutputType = Gpio.OutputType.PushPull,
+        outputSpeed: Gpio.OutputSpeed = Gpio.OutputSpeed.Low,
+        pullMode: Gpio.PullMode = Gpio.PullMode.NoPull,
+    }) void {
+        setBitmask32(Gpio.OutputType, self.outputTypeRegister, pin, setup.outputType);
+        setBitmask32(Gpio.OutputSpeed, self.outputSpeedRegister, pin, setup.outputSpeed);
+        setBitmask32(Gpio.PullMode, self.pullRegister, pin, setup.pullMode);
+        self.setAlternateFunction(pin, f);
+        setBitmask32(Gpio.PinMode, self.modeRegister, pin, Gpio.PinMode.AlternateFunction);
+    }
 };
 
 pub fn MakeGpio(comptime baseAddress: [*]volatile u32) Gpio {

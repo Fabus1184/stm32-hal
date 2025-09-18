@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) void {
 
     const examples = .{
         .{ "STM32F030F4", .{"w5500"}, cortex_m0 },
-        .{ "STM32F407VET6", .{ "blink", "pwm", "adc", "rotary", "1wire", "ethernet", "button", "usb-host", "usart-rx", "flipdot" }, cortex_m4 },
+        .{ "STM32F407VET6", .{ "sdcard", "hd44780", "blink", "pwm", "adc", "rotary", "1wire", "ethernet", "button", "usb-host", "usart-rx", "flipdot" }, cortex_m4 },
     };
     inline for (examples) |entry| {
         const hal = b.createModule(.{

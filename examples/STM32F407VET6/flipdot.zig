@@ -4,7 +4,7 @@ const hal = @import("hal").STM32F407VE;
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
-    .logFn = hal.utils.logFn(hal.USART3.writer()),
+    .logFn = hal.utils.logFn(hal.USART3.writer(), .{}),
 };
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
@@ -97,7 +97,7 @@ export fn main() noreturn {
 
         hal.RTC.disableWriteProtection();
         hal.RTC.init(
-            .{ .day = 17, .month = 8, .year = 2025 },
+            .{ .day = 17, .month = 8, .year = 25 },
             .{ .hour = 18, .minute = 1, .second = 0 },
         );
     }
