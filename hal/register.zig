@@ -1,8 +1,44 @@
 const std = @import("std");
 
 pub fn Register(comptime T: type) type {
+    @setEvalBranchQuota(2000);
+
+    if (T == u32) {
+        return struct {
+            ptr: *align(4) volatile T,
+
+            pub inline fn load(self: @This()) T {
+                return self.ptr.*;
+            }
+
+            pub inline fn store(self: @This(), value: T) void {
+                self.ptr.* = value;
+            }
+        };
+    }
+
+    if (@typeInfo(T) == .@"union") {
+        if (@typeInfo(T).@"union".tag_type != null) {
+            @compileError("Register union must not be tagged");
+        }
+
+        const Size = switch (@sizeOf(T)) {
+            4 => u32,
+            2 => u16,
+            else => @compileError("Register union must be 2 or 4 bytes"),
+        };
+
+        return struct {
+            ptr: *align(4) volatile Size,
+
+            pub inline fn load(self: @This()) T {
+                return @bitCast(self.ptr.*);
+            }
+        };
+    }
+
     const structTypeInfo = switch (@typeInfo(T)) {
-        .@"struct" => |s| s,
+        .@"struct" => |structTypeInfo| structTypeInfo,
         else => @compileError("Register type must be a struct"),
     };
 
@@ -19,8 +55,8 @@ pub fn Register(comptime T: type) type {
         }
     }
 
-    comptime var nonReservedFieldsOpt: [64]std.builtin.Type.StructField = undefined;
-    comptime var nonReservedFieldsCount: usize = 0;
+    var nonReservedFieldsOpt: [64]std.builtin.Type.StructField = undefined;
+    var nonReservedFieldsCount: usize = 0;
     for (structTypeInfo.fields) |field| {
         if (!std.mem.startsWith(u8, field.name, "_")) {
             const defaultValue: struct { value: ?field.type } = .{ .value = null };
@@ -36,7 +72,7 @@ pub fn Register(comptime T: type) type {
         }
     }
 
-    const modifyArgsType = @Type(std.builtin.Type{ .@"struct" = std.builtin.Type.Struct{
+    const modifyArgsType: type = @Type(std.builtin.Type{ .@"struct" = std.builtin.Type.Struct{
         .layout = std.builtin.Type.ContainerLayout.auto,
         .fields = nonReservedFieldsOpt[0..nonReservedFieldsCount],
         .decls = &.{},

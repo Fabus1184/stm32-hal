@@ -186,6 +186,29 @@ fn Fat32Fs(comptime Ctx: type) type {
             return next;
         }
 
+        fn readFile(self: *@This(), startCluster: u32, fileSize: usize, buffer: []u8) !void {
+            var cluster = startCluster;
+            var bytesRead: usize = 0;
+            while (bytesRead < fileSize) {
+                const lba = self.clusterToLba(cluster);
+                for (0..self.bpb.sectorsPerCluster) |i| {
+                    if (bytesRead >= fileSize) break;
+                    const block = try self.readBlock(lba + i);
+                    const toCopy = @min(block.len, fileSize - bytesRead);
+                    @memcpy(buffer[bytesRead .. bytesRead + toCopy], block[0..toCopy]);
+                    bytesRead += toCopy;
+                }
+                cluster = try self.nextCluster(cluster);
+                if (cluster < 2 or cluster >= 0x0FFFFFF8) {
+                    break; // end of cluster chain
+                }
+            }
+
+            if (bytesRead < fileSize) {
+                return error.FileTruncated;
+            }
+        }
+
         const EntryType = enum { dir, file };
         const Entry = union(EntryType) {
             dir: struct { name: [64]u8, nameLength: usize, cluster: u32 },
@@ -356,6 +379,27 @@ fn Fat32Fs(comptime Ctx: type) type {
             }
         };
     };
+}
+
+fn DecimalPrefixedV(comptime T: type) type {
+    return struct {
+        value: T,
+        pub fn format(self: @This(), _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+            if (self.value >= 1_000_000_000) {
+                try writer.print("{d:.2}G", .{@as(f64, @floatFromInt(self.value)) / 1_000_000_000});
+            } else if (self.value >= 1_000_000) {
+                try writer.print("{d:.2}M", .{@as(f64, @floatFromInt(self.value)) / 1_000_000});
+            } else if (self.value >= 1_000) {
+                try writer.print("{d:.2}k", .{@as(f64, @floatFromInt(self.value)) / 1_000});
+            } else {
+                try writer.print("{d}", .{self.value});
+            }
+        }
+    };
+}
+
+fn DecimalPrefixed(value: anytype) DecimalPrefixedV(@TypeOf(value)) {
+    return DecimalPrefixedV(@TypeOf(value)){ .value = value };
 }
 
 export fn main() noreturn {
@@ -534,17 +578,25 @@ export fn main() noreturn {
         std.log.err("FAT32 read dir failed: {}", .{e});
         @panic("FAT32 read dir failed");
     }) |entry| {
-        const spacer = "| | | | | | | | | | | | | | | ";
+        const spacer = "│  │  │  │  │  │  │  │  │  │  │  ";
 
         switch (entry) {
             .dir => |d| {
-                std.log.info("{s}+ DIR {s} (cluster {d})", .{ spacer[0 .. (it.stackSize - 1) * 2], d.name[0..d.nameLength], d.cluster });
+                std.log.info("{s}├─ {s}/", .{ spacer[0 .. (it.stackSize - 2) * 5], d.name[0..d.nameLength] });
             },
             .file => |f| {
-                std.log.info("{s}- FILE {s} size {d} (cluster {d})", .{ spacer[0 .. (it.stackSize - 0) * 2 - 2], f.name[0..f.nameLength], f.size, f.cluster });
+                std.log.info("{s}├─ {s} ({}B, cluster {d})", .{ spacer[0 .. (it.stackSize - 1) * 5], f.name[0..f.nameLength], DecimalPrefixed(f.size), f.cluster });
             },
         }
     }
+
+    // read file
+    var buf: [1024]u8 = undefined;
+    fs.readFile(5, 76, &buf) catch |e| {
+        std.log.err("FAT32 read file failed: {}", .{e});
+        @panic("FAT32 read file failed");
+    };
+    std.log.debug("File data: '{s}'", .{buf[0..76]});
 
     // blink LEDs
     const led1 = hal.GPIOA.setupOutput(6, .{});

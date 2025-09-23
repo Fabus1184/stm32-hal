@@ -201,50 +201,39 @@ pub const Spi = struct {
     fn checkStatus(self: @This()) !void {
         const status = self.sr.load();
 
-        if (status.fre) return error.FrameFormatError;
-        if (status.ovr) return error.OverrunError;
-        if (status.modf) return error.ModeFault;
-        if (status.crcerr) return error.CrcError;
+        if (status.fre) return error.SpiFrameFormatError;
+        if (status.ovr) return error.SpiOverrunError;
+        if (status.modf) return error.SpiModeFault;
+        if (status.crcerr) return error.SpiCrcError;
     }
 
-    pub fn send(self: @This(), comptime T: type, data: T) !void {
+    pub fn transfer(self: @This(), data: []u8) !void {
+        return transfer_(self, data, true);
+    }
+
+    pub fn transferSendOnly(self: @This(), data: []const u8) !void {
+        return transfer_(self, @constCast(data), false);
+    }
+
+    fn transfer_(self: @This(), data: []u8, mutate: bool) !void {
         try self.checkStatus();
 
-        while (!self.sr.load().txe) {}
+        for (data) |*byte| {
+            while (!self.sr.load().txe) {}
 
-        switch (T) {
-            u8 => @as(*align(4) volatile u8, @ptrCast(self.dr)).* = data,
-            u16 => @as(*align(4) volatile u16, @ptrCast(self.dr)).* = data,
-            else => @compileError("unsupported data type"),
+            @as(*align(4) volatile u8, @ptrCast(self.dr)).* = byte.*;
+
+            while (self.sr.load().bsy) {}
+            while (!self.sr.load().rxne) {}
+
+            try self.checkStatus();
+
+            const v = @as(*align(4) volatile u8, @ptrCast(self.dr)).*;
+
+            if (mutate) {
+                byte.* = v;
+            }
         }
-
-        try self.checkStatus();
-
-        while (!self.sr.load().bsy) {}
-
-        try self.checkStatus();
-    }
-
-    pub fn sendAll(self: @This(), comptime T: type, data: []const T) !void {
-        for (data) |item| {
-            try self.send(T, item);
-        }
-    }
-
-    pub fn receive(self: @This(), comptime T: type) !T {
-        try self.checkStatus();
-
-        while (!self.sr.load().rxne) {}
-
-        const data = switch (T) {
-            u8 => @as(u8, @as(*align(4) volatile u8, @ptrCast(self.dr)).*),
-            u16 => @as(u16, @as(*align(4) volatile u16, @ptrCast(self.dr)).*),
-            else => @compileError("unsupported data type"),
-        };
-
-        try self.checkStatus();
-
-        return data;
     }
 };
 

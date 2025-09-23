@@ -168,7 +168,7 @@ pub const InputPin = struct {
     gpio: Gpio,
 
     pub inline fn getLevel(self: @This()) u1 {
-        return @truncate((self.gpio.inputDataRegister.* >> self.pin) & 1);
+        return @intCast((self.gpio.inputDataRegister.* >> self.pin) & 1);
     }
 };
 
@@ -184,8 +184,16 @@ pub const OutputPin = struct {
         }
     }
 
+    pub inline fn setHigh(self: @This()) void {
+        self.setLevel(1);
+    }
+
+    pub inline fn setLow(self: @This()) void {
+        self.setLevel(0);
+    }
+
     pub inline fn getLevel(self: @This()) u1 {
-        return @truncate((self.gpio.inputDataRegister.* >> self.pin) & 1);
+        return @intCast((self.gpio.inputDataRegister.* >> self.pin) & 1);
     }
 
     pub inline fn toggleLevel(self: @This()) void {

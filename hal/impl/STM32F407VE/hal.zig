@@ -61,7 +61,7 @@ pub const DMA2 = dma.Dma(@ptrFromInt(0x4002_6400)){};
 
 pub const EXTI = exti.Exti(@ptrFromInt(0x4001_3C00)){};
 
-pub const USB_FS = usb.OtgFs(@ptrFromInt(0x5000_0000)){};
+pub const USB_FS = usb.MakeOtgFs(@ptrFromInt(0x5000_0000));
 
 pub const SPI1 = spi.MakeSpi(@ptrFromInt(0x4001_3000));
 pub const SPI2 = spi.MakeSpi(@ptrFromInt(0x4000_3800));

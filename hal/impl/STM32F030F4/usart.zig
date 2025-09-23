@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Register = @import("../register.zig").Register;
+const Register = @import("hal").Register;
 
 /// Universal Synchronous Asynchronous Receiver Transmitter
 pub fn Usart(comptime baseAddress: [*]volatile u32) type {
