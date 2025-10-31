@@ -2,8 +2,6 @@ const std = @import("std");
 
 const hal = @import("hal");
 
-const Nrf24l01 = @import("drivers").Nrf24l01;
-
 pub const std_options: std.Options = .{
     .log_level = .debug,
     .logFn = hal.utils.logFn(std.io.AnyWriter{
@@ -23,8 +21,6 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_
 }
 
 export fn main() noreturn {
-    @setRuntimeSafety(true);
-
     hal.memory.initializeMemory();
 
     hal.RCC.ahbenr.gpioaen = true;
@@ -37,31 +33,14 @@ export fn main() noreturn {
 
     std.log.info("USART1 initialized", .{});
 
-    const nrf = Nrf24l01{
-        .spi = hal.SPI1,
-        .cs = hal.GPIOA.setupOutput(8, .{}),
-        .ce = hal.GPIOA.setupOutput(7, .{}),
-    };
-
     const led = hal.GPIOA.setupOutput(4, .{});
 
     while (true) {
         std.log.info("LED: {b}", .{led.getLevel()});
 
-        led.setHigh();
-        sleepMicros(100);
         led.setLow();
+        hal.utils.delayMicros(100_000);
+        led.setHigh();
+        hal.utils.delayMicros(100_000);
     }
-}
-
-inline fn sleepMicros(micros: u32) void {
-    // assuming 48 MHz clock, /8 divider => 6 cycles per microsecond
-    // one loop iteration is 3 cycles
-    const cycles = (micros * 6) / 3;
-    asm volatile (
-        \\1: subs %[cycles], #1
-        \\   bne 1b
-        :
-        : [cycles] "r" (cycles),
-    );
 }

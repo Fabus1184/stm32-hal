@@ -17,9 +17,17 @@ pub const memory = @import("memory.zig");
 pub const Register = @import("register.zig").Register;
 
 pub const utils = struct {
-    pub fn delayMicros(us: u32) void {
-        const cycles = (hal.RCC.ahbClock() / 1_000_000) * us;
-        hal.core.DWT.waitCycles(cycles);
+    pub inline fn delayMicros(micros: u32) void {
+        // one loop iteration is 3 cycles
+        const cycles = (micros * (hal_impl.SYSTEM_CLOCK / 1_000_000)) / 3;
+        asm volatile (
+            \\    mov r0, %[cycles]
+            \\ 1: subs r0, #1
+            \\    bne 1b
+            :
+            : [cycles] "r" (cycles),
+            : "cc", "r0"
+        );
     }
 
     pub fn logFn(

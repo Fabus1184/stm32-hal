@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Register = @import("../register.zig").Register;
+const Register = @import("hal").Register;
 
 pub const Rtc = struct {
     timeRegister: Register(packed struct(u32) {

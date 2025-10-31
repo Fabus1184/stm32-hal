@@ -3,6 +3,9 @@ const hal = @import("hal");
 pub const rcc = @import("rcc.zig");
 pub const usart = @import("usart.zig");
 pub const syscfg = @import("syscfg.zig");
+pub const adc = @import("adc.zig");
+
+pub const SYSTEM_CLOCK: usize = 6_000_000; // 48 MHz clock, /8 divider
 
 pub const RCC = rcc.Rcc(@ptrFromInt(0x4002_1000)){};
 
@@ -25,3 +28,5 @@ pub const SPI2 = hal.spi.MakeSpi(@ptrFromInt(0x4000_3800));
 pub const EXTI = hal.exti.Exti(@ptrFromInt(0x4001_0400)){};
 
 pub const SYSCFG = syscfg.Syscfg(@ptrFromInt(0x4001_0000)){};
+
+pub const ADC = adc.MakeAdc(@ptrFromInt(0x4001_2400));

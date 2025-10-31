@@ -12,7 +12,7 @@ pub fn Usart(comptime baseAddress: [*]volatile u32) type {
 
         receiveTimeoutRegister: *volatile u32 = @ptrCast(&baseAddress[5]),
         receiveQueueRegister: Register(Rqr) = .{ .ptr = @ptrCast(&baseAddress[6]) },
-        interruptStatusRegister: Register(Isr) = .{ .ptr = @ptrCast(&baseAddress[7]) },
+        isr: Register(Isr) = .{ .ptr = @ptrCast(&baseAddress[7]) },
         interruptControlRegister: Register(Icr) = .{ .ptr = @ptrCast(&baseAddress[8]) },
         rxDataRegister: Register(packed struct(u32) { value: u9, _: u23 }) = .{ .ptr = @ptrCast(&baseAddress[9]) },
         txDataRegister: Register(packed struct(u32) { value: u9, _: u23 }) = .{ .ptr = @ptrCast(&baseAddress[10]) },
@@ -31,11 +31,11 @@ pub fn Usart(comptime baseAddress: [*]volatile u32) type {
 
         pub fn send(self: @This(), bytes: []const u8) void {
             for (bytes) |byte| {
-                while (self.interruptStatusRegister.load().transmitEmpty == 0) {}
+                while (self.isr.load().transmitEmpty == 0) {}
                 self.txDataRegister.modify(.{ .value = byte });
             }
 
-            while (self.interruptStatusRegister.load().transmissionComplete == 0) {}
+            while (self.isr.load().transmissionComplete == 0) {}
         }
     };
 }

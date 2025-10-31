@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) !void {
         } },
     });
 
-    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSafe });
+    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
     const Target = struct {
         name: []const u8,
@@ -42,6 +42,7 @@ pub fn build(b: *std.Build) !void {
             .programs = &.{
                 //"w5500"
                 "blink2",
+                "nrfTx",
             },
         },
         Target{
@@ -51,7 +52,8 @@ pub fn build(b: *std.Build) !void {
             .linkerScript = "STM32F407VET6.ld",
             .halImplPath = "hal/impl/STM32F407VE/hal.zig",
             .programs = &.{
-                //"nrf24l01", "usb", "sdcard", "hd44780", "blink", "pwm", "adc", "rotary", "1wire", "ethernet", "button", "usart-rx", "flipdot"
+                "nrfRx", "tm1637", //
+                // "usb", "sdcard", "hd44780", "blink", "pwm", "adc", "rotary", "1wire", "ethernet", "button", "usart-rx", "flipdot"
             },
         },
     };

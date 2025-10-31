@@ -178,7 +178,7 @@ fn flushRx(self: @This()) !StatusRegister.t {
     return @bitCast(cmd[0]);
 }
 
-fn init(self: @This(), channel: u7) !void {
+pub fn init(self: @This(), channel: u7) !void {
     self.ce.setLevel(0);
 
     // set to TX mode, power up, 1 byte CRC
@@ -202,7 +202,7 @@ fn init(self: @This(), channel: u7) !void {
     // configure rf settings
     _ = try self.writeRegister(RfSetupRegister, RfSetupRegister.t{
         .lna_hcurr = 1,
-        .rf_pwr = .@"-18dBm",
+        .rf_pwr = .@"-6dBm",
         .rf_dr = .@"1Mbps",
         .pll_lock = 0,
     });
@@ -260,7 +260,7 @@ fn init(self: @This(), channel: u7) !void {
     _ = try self.flushRx();
 }
 
-fn transmit(self: @This(), data: []const u8, address: [5]u8) !void {
+pub fn transmit(self: @This(), data: []const u8, address: [5]u8) !void {
     if (data.len > 32) {
         return error.TooMuchData;
     }
@@ -319,7 +319,7 @@ fn transmit(self: @This(), data: []const u8, address: [5]u8) !void {
     }
 }
 
-fn startReceive(self: @This(), address: [5]u8) !void {
+pub fn startReceive(self: @This(), address: [5]u8) !void {
     // enter RX mode
     _ = try self.modifyRegister(ConfigRegister, .{ .prim_rx = .rx });
 
@@ -328,7 +328,7 @@ fn startReceive(self: @This(), address: [5]u8) !void {
     self.ce.setLevel(1);
 }
 
-fn checkReceive(self: @This(), buffer: []u8) !?usize {
+pub fn checkReceive(self: @This(), buffer: []u8) !?usize {
     const status = try self.nop();
 
     if (status.rx_dr == 0) {
@@ -384,6 +384,6 @@ fn checkReceive(self: @This(), buffer: []u8) !?usize {
     return len;
 }
 
-fn stopReceive(self: @This()) void {
+pub fn stopReceive(self: @This()) void {
     self.ce.setLevel(0);
 }
